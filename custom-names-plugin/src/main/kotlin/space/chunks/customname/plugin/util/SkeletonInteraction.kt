@@ -8,7 +8,7 @@ import net.minecraft.network.protocol.game.*
 import net.minecraft.network.syncher.EntityDataAccessor
 import net.minecraft.network.syncher.SynchedEntityData.DataItem
 import net.minecraft.network.syncher.SynchedEntityData.DataValue
-import net.minecraft.world.entity.EntityType
+import net.minecraft.world.entity.EntityTypes
 import net.minecraft.world.entity.Pose
 import net.minecraft.world.phys.Vec3
 import org.bukkit.Location
@@ -17,7 +17,6 @@ import org.bukkit.entity.Player
 import space.chunks.customname.plugin.CustomNameImpl
 import java.lang.reflect.Constructor
 import java.util.*
-import java.util.List
 
 /**
  * This classed is used for sending packets related to the interaction entity
@@ -48,7 +47,7 @@ class SkeletonInteraction(
 
     fun getRiderPacket(): Packet<ClientGamePacketListener> {
         val buf = FriendlyByteBuf(Unpooled.buffer())
-        buf.writeVarInt(this.customName.getTargetEntity().getEntityId())
+        buf.writeVarInt(this.customName.getTargetEntity().entityId)
 
         val passengerIds = this.passengerIds()
         buf.writeVarIntArray(passengerIds)
@@ -62,13 +61,13 @@ class SkeletonInteraction(
     }
 
     private fun passengerIds(): IntArray {
-        val passengers: kotlin.collections.List<Entity> =
-            this.customName.getTargetEntity().passengers //respect passengers
+        val passengers: List<Entity> =
+            this.customName.getTargetEntity().passengers // respect passengers
         var passengerIds = IntArray(passengers.size)
         if (!this.customName.isHidden()) {
             val length = passengerIds.size
             passengerIds = IntArray(length + 1)
-            passengerIds[length] = this.customName.getNametagId() //always add the entity if it is visible
+            passengerIds[length] = this.customName.getNametagId() // always add the entity if it is visible
         }
         for (i in passengers.indices) {
             passengerIds[i] = passengers[i].entityId
@@ -79,16 +78,16 @@ class SkeletonInteraction(
     fun initialSpawnPacket(viewer: Player): Packet<*> {
         val initialCreatePacket = ClientboundSetEntityDataPacket(
             this.customName.getNametagId(), listOf<DataValue<*>>(
-                ofData<Float>(DataAccessors.DATA_WIDTH_ID, 0.6f),
+                ofData(DataAccessors.DATA_WIDTH_ID, 0.6f),
                 ofData<Float>(DataAccessors.DATA_HEIGHT_ID, this.customName.getEffectiveHeight().toFloat()),
-                ofData<Pose>(DataAccessors.DATA_POSE, Pose.CROAKING),
-                ofData<Boolean>(DataAccessors.DATA_CUSTOM_NAME_VISIBLE, true)
+                ofData(DataAccessors.DATA_POSE, Pose.CROAKING),
+                ofData(DataAccessors.DATA_CUSTOM_NAME_VISIBLE, true)
             )
         )
         val syncData = syncDataPacket(viewer)
 
         return ClientboundBundlePacket(
-            List.of<Packet<in ClientGamePacketListener>>(
+            listOf<Packet<in ClientGamePacketListener>>(
                 createPacket(),  // Create entity
                 initialCreatePacket,
                 syncData,
@@ -98,7 +97,7 @@ class SkeletonInteraction(
     }
 
     private fun createPacket(): Packet<ClientGamePacketListener> {
-        val location: Location = this.customName.getTargetEntity().getLocation()
+        val location: Location = this.customName.getTargetEntity().location
 
         return ClientboundAddEntityPacket(
             this.customName.getNametagId(),
@@ -108,7 +107,7 @@ class SkeletonInteraction(
             location.z(),
             0f,
             0f,
-            EntityType.INTERACTION,
+            EntityTypes.INTERACTION,
             0,
             Vec3.ZERO,
             0.0,

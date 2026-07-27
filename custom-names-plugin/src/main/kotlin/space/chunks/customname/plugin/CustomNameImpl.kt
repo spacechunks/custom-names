@@ -37,9 +37,8 @@ class CustomNameImpl(
     private var task: BukkitTask? = null
 
     init {
-        this.nametagEntityId = net.minecraft.world.entity.Entity.nextEntityId()
-
         val nmsEntity = (targetEntity as CraftEntity).handle
+        this.nametagEntityId = nmsEntity.level().nextEntityId
 
         val ridingOffset = nmsEntity
             .getPassengerRidingPosition(nmsEntity)

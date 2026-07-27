@@ -33,6 +33,7 @@ object DataAccessors {
 
     private fun <T : Any> get(clazz: Class<*>, name: String): EntityDataAccessor<T> {
         try {
+            @Suppress("UNCHECKED_CAST")
             return MethodHandles.privateLookupIn(clazz, MethodHandles.lookup())
                 .findStaticGetter(
                     clazz,

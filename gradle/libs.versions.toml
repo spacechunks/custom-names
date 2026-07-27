@@ -6,7 +6,7 @@ run-task = "3.0.2"
 paperweight = "2.0.0-beta.21"
 sonatype-central-portal-publisher = "1.2.4"
 
-paper-api = "26.1.2.build.+"
+paper-api = "26.2.build.+"
 reflection-remapper = "0.1.3"
 
 [libraries]

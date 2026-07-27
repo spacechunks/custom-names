@@ -12,7 +12,7 @@ import space.chunks.customname.plugin.CustomNameStorage
  *
  * This matches vanilla behavior.
  */
-class PlayerSneakListener() : Listener {
+class PlayerSneakListener : Listener {
 
     @EventHandler(ignoreCancelled = true)
     fun toggleSneak(event: PlayerToggleSneakEvent) {
