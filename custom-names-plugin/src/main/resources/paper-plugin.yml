@@ -1,5 +1,5 @@
 name: CustomNames
-version: "1.0.0"
+version: ${version}
 main: space.chunks.customname.plugin.CustomNamesPlugin
 authors: ["Owen1212055", "Fllip"]
-api-version: "1.21"
+api-version: 26.2

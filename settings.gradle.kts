@@ -6,11 +6,12 @@ pluginManagement {
 }
 
 plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-rootProject.name = "custom-names"
 include(
     "custom-names-api",
     "custom-names-plugin",
 )
+
+rootProject.name = "custom-names"

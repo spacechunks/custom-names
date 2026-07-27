@@ -1,6 +1,5 @@
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 plugins {
     id("java")
@@ -20,33 +19,41 @@ allprojects {
 }
 
 subprojects {
-    apply(plugin = "org.jetbrains.kotlin.jvm")
-    apply(plugin = "com.gradleup.shadow")
+    apply {
+        plugin("kotlin")
+        plugin("com.gradleup.shadow")
+    }
 
     dependencies {
         implementation(rootProject.libs.kotlin.jvm)
         compileOnly(rootProject.libs.paper.api)
     }
 
+    kotlin {
+        jvmToolchain(25)
+        compilerOptions {
+            jvmTarget = JvmTarget.JVM_25
+            languageVersion = KotlinVersion.KOTLIN_2_4
+            apiVersion = KotlinVersion.KOTLIN_2_4
+        }
+    }
+
+    java {
+        toolchain.languageVersion.set(JavaLanguageVersion.of(25))
+    }
+
     tasks.test {
         useJUnitPlatform()
     }
 
-    java {
-        toolchain.languageVersion.set(JavaLanguageVersion.of(21))
-    }
-
-    kotlin {
-        jvmToolchain(21)
-    }
-
-    tasks.withType<KotlinCompile> {
-        compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
-    }
-
-    tasks.named("shadowJar", ShadowJar::class) {
+    tasks.shadowJar {
         mergeServiceFiles()
         archiveFileName.set("${project.name}.jar")
     }
 
+    tasks.processResources {
+        filesMatching("paper-plugin.yml") {
+            expand("version" to project.version)
+        }
+    }
 }

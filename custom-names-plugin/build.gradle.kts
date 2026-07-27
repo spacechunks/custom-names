@@ -7,11 +7,11 @@ plugins {
 dependencies {
     implementation(rootProject.libs.reflection.remapper)
     api(project(":custom-names-api"))
-    paperweight.paperDevBundle("1.21.11-R0.1-SNAPSHOT")
+    paperweight.paperDevBundle(libs.versions.paper.api)
 }
 
 tasks {
     runServer {
-        minecraftVersion("1.21.11")
+        minecraftVersion("26.2")
     }
 }

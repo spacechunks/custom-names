@@ -23,7 +23,7 @@ dependencies:
   server:
     CustomNames:
         load: BEFORE
-        require: true
+        required: true
         join-classpath: true
 ```
 
