@@ -1,4 +1,4 @@
-package space.chunks.customname.plugin
+package space.chunks.customname.paper
 
 import org.bukkit.Bukkit
 import org.bukkit.plugin.ServicePriority

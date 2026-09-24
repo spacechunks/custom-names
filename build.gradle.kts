@@ -26,7 +26,6 @@ subprojects {
 
     dependencies {
         implementation(rootProject.libs.kotlin.jvm)
-        compileOnly(rootProject.libs.paper.api)
     }
 
     kotlin {

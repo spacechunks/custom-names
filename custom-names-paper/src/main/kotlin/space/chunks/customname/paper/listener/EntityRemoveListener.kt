@@ -1,9 +1,9 @@
-package space.chunks.customname.plugin.listener
+package space.chunks.customname.paper.listener
 
 import com.destroystokyo.paper.event.entity.EntityRemoveFromWorldEvent
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
-import space.chunks.customname.plugin.CustomNameStorage
+import space.chunks.customname.paper.CustomNameStorage
 
 class EntityRemoveListener : Listener {
 

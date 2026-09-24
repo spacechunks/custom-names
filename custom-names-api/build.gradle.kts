@@ -3,6 +3,10 @@ plugins {
     id("maven-publish")
 }
 
+dependencies {
+    implementation(libs.adventure.api)
+}
+
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {

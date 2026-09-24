@@ -1,9 +1,9 @@
-package space.chunks.customname.plugin.listener
+package space.chunks.customname.paper.listener
 
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerToggleSneakEvent
-import space.chunks.customname.plugin.CustomNameStorage
+import space.chunks.customname.paper.CustomNameStorage
 
 /**
  * Responsible for forwarding sneaking state over the

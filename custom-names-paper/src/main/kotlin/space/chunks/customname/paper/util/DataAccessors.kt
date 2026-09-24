@@ -1,4 +1,4 @@
-package space.chunks.customname.plugin.util
+package space.chunks.customname.paper.util
 
 import io.netty.buffer.Unpooled
 import net.minecraft.network.FriendlyByteBuf

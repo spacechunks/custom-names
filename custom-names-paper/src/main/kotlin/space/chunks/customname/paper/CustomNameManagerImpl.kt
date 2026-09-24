@@ -1,14 +1,14 @@
-package space.chunks.customname.plugin
+package space.chunks.customname.paper
 
 import org.bukkit.Bukkit
 import org.bukkit.entity.Entity
 import org.bukkit.plugin.java.JavaPlugin
 import space.chunks.customname.api.CustomNameManager
-import space.chunks.customname.plugin.listener.EntityPassengerListener
-import space.chunks.customname.plugin.listener.EntityRemoveListener
-import space.chunks.customname.plugin.listener.PlayerQuitListener
-import space.chunks.customname.plugin.listener.PlayerSneakListener
-import space.chunks.customname.plugin.listener.PlayerTrackerListener
+import space.chunks.customname.paper.listener.EntityPassengerListener
+import space.chunks.customname.paper.listener.EntityRemoveListener
+import space.chunks.customname.paper.listener.PlayerQuitListener
+import space.chunks.customname.paper.listener.PlayerSneakListener
+import space.chunks.customname.paper.listener.PlayerTrackerListener
 
 class CustomNameManagerImpl(
     private val plugin: JavaPlugin

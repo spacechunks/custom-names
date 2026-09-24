@@ -1,4 +1,4 @@
-package space.chunks.customname.plugin
+package space.chunks.customname.paper
 
 import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
@@ -9,7 +9,7 @@ import org.bukkit.craftbukkit.entity.CraftPlayer
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
 import space.chunks.customname.api.CustomName
-import space.chunks.customname.plugin.util.SkeletonInteraction
+import space.chunks.customname.paper.util.SkeletonInteraction
 import java.util.UUID
 import java.util.function.Consumer
 

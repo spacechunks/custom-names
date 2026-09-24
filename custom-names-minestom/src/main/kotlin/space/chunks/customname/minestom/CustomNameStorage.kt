@@ -1,11 +1,11 @@
-package space.chunks.customname.plugin
+package space.chunks.customname.minestom
 
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 object CustomNameStorage {
 
-    private val storage: MutableMap<UUID, CustomNameImpl> = ConcurrentHashMap()
+    private val storage = ConcurrentHashMap<UUID, CustomNameImpl>()
 
     fun getAll(): Collection<CustomNameImpl> = storage.values
 

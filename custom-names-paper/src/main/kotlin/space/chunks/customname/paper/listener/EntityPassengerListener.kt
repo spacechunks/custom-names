@@ -1,11 +1,11 @@
-package space.chunks.customname.plugin.listener
+package space.chunks.customname.paper.listener
 
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.EntityDismountEvent
 import org.bukkit.event.entity.EntityMountEvent
 import org.bukkit.plugin.java.JavaPlugin
-import space.chunks.customname.plugin.CustomNameStorage
+import space.chunks.customname.paper.CustomNameStorage
 
 /**
  * Responsible for hiding the name on entities that have
