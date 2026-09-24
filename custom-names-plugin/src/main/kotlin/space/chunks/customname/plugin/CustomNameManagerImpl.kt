@@ -11,7 +11,7 @@ import space.chunks.customname.plugin.listener.PlayerTrackerListener
 
 class CustomNameManagerImpl(
     private val plugin: JavaPlugin
-): CustomNameManager {
+): CustomNameManager<Entity> {
 
     fun registerListeners() {
         Bukkit.getPluginManager().registerEvents(PlayerTrackerListener(plugin), plugin)
@@ -24,7 +24,7 @@ class CustomNameManagerImpl(
         var customName = CustomNameStorage.getCustomPlayerName(entity.uniqueId)
         if (customName == null) {
             customName = CustomNameImpl(plugin, entity)
-            CustomNameStorage.registerNew(entity.uniqueId, customName)
+            CustomNameStorage.register(entity.uniqueId, customName)
 
             // Send to trackers
             customName.setHidden(false)

@@ -1,5 +1,6 @@
 package space.chunks.customname.plugin
 
+import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
 import net.minecraft.network.protocol.Packet
 import net.minecraft.network.protocol.game.ClientGamePacketListener
@@ -12,6 +13,7 @@ import org.bukkit.scheduler.BukkitRunnable
 import org.bukkit.scheduler.BukkitTask
 import space.chunks.customname.api.CustomName
 import space.chunks.customname.plugin.util.SkeletonInteraction
+import java.util.UUID
 import java.util.function.Consumer
 
 class CustomNameImpl(
@@ -31,7 +33,7 @@ class CustomNameImpl(
     // States
     private var targetEntitySneaking = false
 
-    private var nameCallback: (viewer: Player) -> Component? = { null }
+    private var nameCallback: (viewer: Audience) -> Component? = { null }
     private var hidden = false
 
     private var task: BukkitTask? = null
@@ -64,7 +66,7 @@ class CustomNameImpl(
         }.runTaskTimer(plugin, 20, 20)
     }
 
-    override fun setName(nameCallback: (viewer: Player) -> Component?) {
+    override fun setName(nameCallback: (viewer: Audience) -> Component?) {
         this.nameCallback = nameCallback
         this.syncData()
     }
@@ -76,8 +78,7 @@ class CustomNameImpl(
 
     fun sendToClient(entity: Player) {
         if (!hidden) {
-            (entity as CraftPlayer).handle.connection
-                .send(interaction.initialSpawnPacket(entity))
+            (entity as CraftPlayer).handle.connection.send(interaction.initialSpawnPacket(entity))
         }
     }
 
@@ -92,9 +93,10 @@ class CustomNameImpl(
         }
     }
 
-    override fun getName(viewer: Player): Component? = nameCallback(viewer)
+    override fun getName(viewer: Audience): Component? = nameCallback(viewer)
     override fun getNametagId(): Int = nametagEntityId
-    override fun getTargetEntity(): Entity = targetEntity
+    override fun getTargetEntityId(): UUID = targetEntity.uniqueId
+    fun getTargetEntity(): Entity = targetEntity
     override fun isTargetEntitySneaking(): Boolean = targetEntitySneaking
     override fun getEffectiveHeight(): Double = effectiveHeight
     override fun getPassengerOffset(): Double = passengerOffset

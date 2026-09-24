@@ -1,9 +1,9 @@
 package space.chunks.customname.api
 
+import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
-import org.bukkit.entity.Entity
-import org.bukkit.entity.Player
 import org.jetbrains.annotations.Nullable
+import java.util.UUID
 
 interface CustomName {
 
@@ -19,7 +19,7 @@ interface CustomName {
      *
      * @param nameCallback A callback that returns the custom name to set, or null to remove the custom name.
      */
-    fun setName(nameCallback: (viewer: Player) -> Component?)
+    fun setName(nameCallback: (viewer: Audience) -> Component?)
 
     /**
      * Sets whether the target entity is sneaking.
@@ -41,7 +41,7 @@ interface CustomName {
      * @return The current custom name, or null if not set.
      */
     @Nullable
-    fun getName(viewer: Player): Component?
+    fun getName(viewer: Audience): Component?
 
     /**
      * Gets the ID of the nametag entity.
@@ -51,11 +51,11 @@ interface CustomName {
     fun getNametagId(): Int
 
     /**
-     * Gets the target entity associated with this custom name.
+     * Gets the UUID of the target entity associated with this custom name.
      *
-     * @return The target entity.
+     * @return The target entity UUID.
      */
-    fun getTargetEntity(): Entity
+    fun getTargetEntityId(): UUID
 
     /**
      * Checks if the target entity is sneaking.

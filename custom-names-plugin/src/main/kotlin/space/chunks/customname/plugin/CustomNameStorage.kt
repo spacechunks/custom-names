@@ -11,7 +11,7 @@ object CustomNameStorage {
         return customPlayerNameMap[uuid]
     }
 
-    fun registerNew(entityId: UUID, name: CustomNameImpl) {
+    fun register(entityId: UUID, name: CustomNameImpl) {
         customPlayerNameMap[entityId] = name
     }
 
