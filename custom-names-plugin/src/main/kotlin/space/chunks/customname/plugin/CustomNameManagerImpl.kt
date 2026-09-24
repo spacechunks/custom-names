@@ -5,37 +5,56 @@ import org.bukkit.entity.Entity
 import org.bukkit.plugin.java.JavaPlugin
 import space.chunks.customname.api.CustomNameManager
 import space.chunks.customname.plugin.listener.EntityPassengerListener
+import space.chunks.customname.plugin.listener.EntityRemoveListener
 import space.chunks.customname.plugin.listener.PlayerQuitListener
 import space.chunks.customname.plugin.listener.PlayerSneakListener
 import space.chunks.customname.plugin.listener.PlayerTrackerListener
 
 class CustomNameManagerImpl(
     private val plugin: JavaPlugin
-): CustomNameManager<Entity> {
+) : CustomNameManager<Entity> {
 
     fun registerListeners() {
-        Bukkit.getPluginManager().registerEvents(PlayerTrackerListener(plugin), plugin)
-        Bukkit.getPluginManager().registerEvents(PlayerSneakListener(), plugin)
-        Bukkit.getPluginManager().registerEvents(EntityPassengerListener(plugin), plugin)
-        Bukkit.getPluginManager().registerEvents(PlayerQuitListener(plugin), plugin)
+        val pluginManager = Bukkit.getPluginManager()
+        pluginManager.registerEvents(PlayerTrackerListener(plugin), plugin)
+        pluginManager.registerEvents(PlayerSneakListener(), plugin)
+        pluginManager.registerEvents(EntityPassengerListener(plugin), plugin)
+        pluginManager.registerEvents(PlayerQuitListener(plugin), plugin)
+        pluginManager.registerEvents(EntityRemoveListener(), plugin)
+
+        startUpdateTask()
+    }
+
+    fun stop() {
+        plugin.server.scheduler.cancelTasks(plugin)
+        CustomNameStorage.clear()
+    }
+
+    private fun startUpdateTask() {
+        plugin.server.scheduler.runTaskTimer(plugin, Runnable {
+            for (customName in CustomNameStorage.getAll()) {
+                if (!customName.getTargetEntity().isValid) {
+                    CustomNameStorage.remove(customName.getTargetEntityId())
+                } else {
+                    customName.update()
+                }
+            }
+        }, 20, 20)
     }
 
     override fun forEntity(entity: Entity): CustomNameImpl {
-        var customName = CustomNameStorage.getCustomPlayerName(entity.uniqueId)
-        if (customName == null) {
-            customName = CustomNameImpl(plugin, entity)
-            CustomNameStorage.register(entity.uniqueId, customName)
+        val existing = CustomNameStorage.getCustomPlayerName(entity.uniqueId)
+        if (existing != null) return existing
 
-            // Send to trackers
-            customName.setHidden(false)
-        }
+        val customName = CustomNameImpl(entity)
+        CustomNameStorage.register(entity.uniqueId, customName)
+        customName.setHidden(false)
 
         return customName
     }
 
     override fun unregister(entity: Entity) {
-        val customName = CustomNameStorage.remove(entity.uniqueId)
-        customName?.setHidden(true)
+        CustomNameStorage.remove(entity.uniqueId)
     }
 
 }

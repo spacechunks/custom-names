@@ -1,25 +1,31 @@
 package space.chunks.customname.plugin
 
-import java.util.*
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 object CustomNameStorage {
 
-    private val customPlayerNameMap: MutableMap<UUID, CustomNameImpl> = ConcurrentHashMap()
+    private val storage: MutableMap<UUID, CustomNameImpl> = ConcurrentHashMap()
 
-    fun getCustomPlayerName(uuid: UUID): CustomNameImpl? {
-        return customPlayerNameMap[uuid]
-    }
+    fun getAll(): Collection<CustomNameImpl> = storage.values
+
+    fun getCustomPlayerName(uuid: UUID): CustomNameImpl? = storage[uuid]
 
     fun register(entityId: UUID, name: CustomNameImpl) {
-        customPlayerNameMap[entityId] = name
+        storage[entityId] = name
     }
 
     fun remove(uuid: UUID): CustomNameImpl? {
-        val name = customPlayerNameMap.remove(uuid)
-        name?.close()
-
+        val name = storage.remove(uuid)
+        name?.setHidden(true)
         return name
+    }
+
+    fun clear() {
+        for (name in storage.values) {
+            name.setHidden(true)
+        }
+        storage.clear()
     }
 
 }

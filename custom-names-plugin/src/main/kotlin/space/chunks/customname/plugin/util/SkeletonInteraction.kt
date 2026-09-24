@@ -1,10 +1,12 @@
 package space.chunks.customname.plugin.util
 
-import io.netty.buffer.Unpooled
 import io.papermc.paper.adventure.PaperAdventure
-import net.minecraft.network.FriendlyByteBuf
 import net.minecraft.network.protocol.Packet
-import net.minecraft.network.protocol.game.*
+import net.minecraft.network.protocol.game.ClientGamePacketListener
+import net.minecraft.network.protocol.game.ClientboundAddEntityPacket
+import net.minecraft.network.protocol.game.ClientboundBundlePacket
+import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket
+import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket
 import net.minecraft.network.syncher.EntityDataAccessor
 import net.minecraft.network.syncher.SynchedEntityData.DataItem
 import net.minecraft.network.syncher.SynchedEntityData.DataValue
@@ -15,8 +17,8 @@ import org.bukkit.Location
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
 import space.chunks.customname.plugin.CustomNameImpl
-import java.lang.reflect.Constructor
-import java.util.*
+import java.util.Optional
+import java.util.UUID
 
 /**
  * This classed is used for sending packets related to the interaction entity
@@ -25,9 +27,9 @@ import java.util.*
 class SkeletonInteraction(
     private val customName: CustomNameImpl
 ) {
-    fun removePacket(): Packet<ClientGamePacketListener> {
-        return ClientboundRemoveEntitiesPacket(this.customName.getNametagId())
-    }
+
+    fun removePacket(): Packet<ClientGamePacketListener> =
+        ClientboundRemoveEntitiesPacket(this.customName.getNametagId())
 
     fun syncDataPacket(viewer: Player): Packet<ClientGamePacketListener> {
         val data: MutableList<DataValue<*>> = ArrayList()
@@ -38,39 +40,30 @@ class SkeletonInteraction(
             )
         )
 
-        var value = (if (this.customName.isTargetEntitySneaking()) 1 shl 1 else 0).toByte()
-        value = (value.toInt() or 0x20).toByte()
+        val sneakFlag = if (this.customName.isTargetEntitySneaking()) 1 shl 1 else 0
+        val value = (sneakFlag or 0x20).toByte()
         data.add(ofData(DataAccessors.DATA_SHARED_FLAGS_ID, value))
 
         return ClientboundSetEntityDataPacket(this.customName.getNametagId(), data)
     }
 
-    fun getRiderPacket(): Packet<ClientGamePacketListener> {
-        val buf = FriendlyByteBuf(Unpooled.buffer())
-        buf.writeVarInt(this.customName.getTargetEntity().entityId)
-
-        val passengerIds = this.passengerIds()
-        buf.writeVarIntArray(passengerIds)
-
-        // Use reflection to access the private constructor
-        val constructor: Constructor<ClientboundSetPassengersPacket> = ClientboundSetPassengersPacket::class.java
-            .getDeclaredConstructor(FriendlyByteBuf::class.java)
-        constructor.isAccessible = true
-
-        return constructor.newInstance(buf)
-    }
+    fun getRiderPacket(): Packet<ClientGamePacketListener> =
+        DataAccessors.createSetPassengersPacket(
+            this.customName.getTargetEntity().entityId,
+            this.passengerIds()
+        )
 
     private fun passengerIds(): IntArray {
-        val passengers: List<Entity> =
-            this.customName.getTargetEntity().passengers // respect passengers
-        var passengerIds = IntArray(passengers.size)
-        if (!this.customName.isHidden()) {
-            val length = passengerIds.size
-            passengerIds = IntArray(length + 1)
-            passengerIds[length] = this.customName.getNametagId() // always add the entity if it is visible
-        }
+        val passengers: List<Entity> = this.customName.getTargetEntity().passengers
+        val includeNametag = !this.customName.isHidden()
+        val size = passengers.size + (if (includeNametag) 1 else 0)
+        val passengerIds = IntArray(size)
+
         for (i in passengers.indices) {
             passengerIds[i] = passengers[i].entityId
+        }
+        if (includeNametag) {
+            passengerIds[passengers.size] = this.customName.getNametagId()
         }
         return passengerIds
     }
@@ -88,7 +81,7 @@ class SkeletonInteraction(
 
         return ClientboundBundlePacket(
             listOf<Packet<in ClientGamePacketListener>>(
-                createPacket(),  // Create entity
+                createPacket(),
                 initialCreatePacket,
                 syncData,
                 this.getRiderPacket()
@@ -103,7 +96,7 @@ class SkeletonInteraction(
             this.customName.getNametagId(),
             UUID.randomUUID(),
             location.x(),
-            location.y() + this.customName.getPassengerOffset(),  // Put the entity as close as possible to prevent lerping
+            location.y() + this.customName.getPassengerOffset(),
             location.z(),
             0f,
             0f,
@@ -114,8 +107,7 @@ class SkeletonInteraction(
         )
     }
 
-    private fun <T : Any> ofData(data: EntityDataAccessor<T>, value: T): DataValue<T> {
-        return DataItem(data, value).value()
-    }
+    private fun <T : Any> ofData(data: EntityDataAccessor<T>, value: T): DataValue<T> =
+        DataItem(data, value).value()
 
 }

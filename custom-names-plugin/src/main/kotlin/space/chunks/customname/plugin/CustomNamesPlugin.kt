@@ -15,4 +15,8 @@ class CustomNamesPlugin : JavaPlugin() {
         Bukkit.getServicesManager().register(CustomNameManager::class.java, customNameManager, this, ServicePriority.Normal)
     }
 
+    override fun onDisable() {
+        customNameManager.stop()
+    }
+
 }
