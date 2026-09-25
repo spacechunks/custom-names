@@ -10,9 +10,7 @@ class PlayerTrackerListener {
     fun register(node: EventNode<Event>) {
         node.addListener(EntityTickEvent::class.java) { event ->
             val customName = CustomNameStorage.getCustomPlayerName(event.entity.uuid)
-            if (customName != null) {
-                customName.updateViewers()
-            }
+            customName?.updateViewers()
         }
     }
 

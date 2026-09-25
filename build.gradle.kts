@@ -9,7 +9,7 @@ plugins {
 
 allprojects {
     group = "space.chunks.custom-names"
-    version = "1.0.7"
+    version = "1.2.0"
 
     repositories {
         mavenCentral()

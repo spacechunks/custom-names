@@ -42,8 +42,8 @@ class CustomNameImpl(
         val ridingOffset = entityHeight * 0.75
         val nametagOffset = entityHeight + 0.5f
 
-        this.effectiveHeight = -ridingOffset - 0.5 + nametagOffset
-        this.passengerOffset = ridingOffset
+        effectiveHeight = -ridingOffset - 0.5 + nametagOffset
+        passengerOffset = ridingOffset
     }
 
     fun update() {
@@ -60,7 +60,9 @@ class CustomNameImpl(
         val currentViewers = targetEntity.viewers
         for (viewer in currentViewers) {
             if (trackedViewers.add(viewer)) {
-                sendToClient(viewer)
+                if (!hidden) {
+                    sendSpawnPackets(viewer)
+                }
             }
         }
 
@@ -68,7 +70,7 @@ class CustomNameImpl(
         while (iterator.hasNext()) {
             val viewer = iterator.next()
             if (!currentViewers.contains(viewer)) {
-                playerDestroyPacket(viewer)
+                sendDestroyPacket(viewer)
                 iterator.remove()
             }
         }
@@ -76,33 +78,21 @@ class CustomNameImpl(
 
     override fun setName(nameCallback: (viewer: Audience) -> Component?) {
         this.nameCallback = nameCallback
-        this.syncData()
+        syncData()
     }
 
     override fun setTargetEntitySneaking(targetEntitySneaking: Boolean) {
         this.targetEntitySneaking = targetEntitySneaking
-        this.syncData()
-    }
-
-    fun sendToClient(player: Player) {
-        if (!hidden) {
-            trackedViewers.add(player)
-            sendInitialSpawnPackets(player)
-        }
-    }
-
-    fun removeFromClient(player: Player) {
-        trackedViewers.remove(player)
-        playerDestroyPacket(player)
+        syncData()
     }
 
     override fun setHidden(hidden: Boolean) {
         this.hidden = hidden
         for (player in trackedViewers) {
             if (hidden) {
-                playerDestroyPacket(player)
+                sendDestroyPacket(player)
             } else {
-                sendInitialSpawnPackets(player)
+                sendSpawnPackets(player)
             }
         }
     }
@@ -115,8 +105,6 @@ class CustomNameImpl(
     override fun getPassengerOffset(): Double = passengerOffset
     override fun isHidden(): Boolean = hidden
 
-    fun getTargetEntity(): Entity = targetEntity
-
     // Utilities
     private fun syncData() {
         if (hidden) return
@@ -126,9 +114,11 @@ class CustomNameImpl(
         }
     }
 
-    private fun playerDestroyPacket(player: Player) {
+    private fun sendDestroyPacket(player: Player) {
         player.sendPacket(DestroyEntitiesPacket(nametagEntityId))
     }
+
+    fun getTargetEntity(): Entity = targetEntity
 
     fun getRiderPacket(): SetPassengersPacket {
         val passengers = targetEntity.passengers
@@ -158,7 +148,7 @@ class CustomNameImpl(
         return EntityMetaDataPacket(nametagEntityId, entries)
     }
 
-    private fun sendInitialSpawnPackets(viewer: Player) {
+    private fun sendSpawnPackets(viewer: Player) {
         val location = targetEntity.position
 
         val spawnPacket = SpawnEntityPacket(

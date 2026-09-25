@@ -5,7 +5,7 @@ import net.minestom.server.event.EventNode
 import net.minestom.server.event.player.PlayerInputEvent
 import space.chunks.customname.minestom.CustomNameStorage
 
-class PlayerSneakListener {
+class PlayerInputListener {
 
     fun register(node: EventNode<Event>) {
         node.addListener(PlayerInputEvent::class.java) { event ->

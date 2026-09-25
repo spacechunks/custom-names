@@ -34,7 +34,7 @@ class CustomNameImpl(
 
     init {
         val nmsEntity = (targetEntity as CraftEntity).handle
-        this.nametagEntityId = nmsEntity.level().nextEntityId
+        nametagEntityId = nmsEntity.level().nextEntityId
 
         val ridingOffset = nmsEntity
             .getPassengerRidingPosition(nmsEntity)
@@ -45,8 +45,8 @@ class CustomNameImpl(
         // First, negate the riding offset to get to the bounding of the entity's bounding box
         // Negate the natural nametag offset of interaction entities (0.5)
         // Add the actual offset of the nametag
-        this.effectiveHeight = -ridingOffset - 0.5 + nametagOffset
-        this.passengerOffset = ridingOffset
+        effectiveHeight = -ridingOffset - 0.5 + nametagOffset
+        passengerOffset = ridingOffset
     }
 
     fun update() {
@@ -63,12 +63,12 @@ class CustomNameImpl(
 
     override fun setName(nameCallback: (viewer: Audience) -> Component?) {
         this.nameCallback = nameCallback
-        this.syncData()
+        syncData()
     }
 
     override fun setTargetEntitySneaking(targetEntitySneaking: Boolean) {
         this.targetEntitySneaking = targetEntitySneaking
-        this.syncData()
+        syncData()
     }
 
     fun sendToClient(entity: Player) {
@@ -83,7 +83,7 @@ class CustomNameImpl(
 
     override fun setHidden(hidden: Boolean) {
         this.hidden = hidden
-        this.runOnTrackers { player ->
+        runOnTrackers { player ->
             if (hidden) removeFromClient(player) else sendToClient(player)
         }
     }

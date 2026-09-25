@@ -22,9 +22,7 @@ object CustomNameStorage {
     }
 
     fun clear() {
-        for (name in storage.values) {
-            name.setHidden(true)
-        }
+        storage.values.forEach { name -> name.setHidden(true) }
         storage.clear()
     }
 

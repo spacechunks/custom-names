@@ -46,6 +46,12 @@ centralPortal {
 }
 
 signing {
+    val signingKey = findProperty("SIGNING_KEY") as? String
+    val signingPassword = findProperty("SIGNING_PASSWORD") as? String
+    if (signingKey != null && signingPassword != null) {
+        useInMemoryPgpKeys(signingKey, signingPassword)
+    } else {
+        useGpgCmd()
+    }
     sign(publishing.publications)
-    useGpgCmd()
 }

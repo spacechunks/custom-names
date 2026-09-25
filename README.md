@@ -11,7 +11,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("space.chunks.custom-names:custom-names-api:1.0.6")
+    compileOnly("space.chunks.custom-names:custom-names-api:1.2.0")
 }
 ```
 
@@ -36,11 +36,12 @@ Here is an example of how to use it inside the `PlayerJoinEvent`:
 fun onJoin(event: PlayerJoinEvent) {
     val player = event.player
     
-    // Load this in the onEnable and pass it to the listener class. Don't load it every time a player joins
-    val customNameManager = Bukkit.getServicesManager().load(CustomNameManager::class.java)?: throw IllegalStateException("CustomNameManager not loaded")
+    // Load this in onEnable and pass it to the listener class. Don't load it every time a player joins
+    val customNameManager = Bukkit.getServicesManager().load(CustomNameManager::class.java) 
+        ?: throw IllegalStateException("CustomNameManager not loaded")
     
-    val name = customNameManager.forEntity(entity)
-    name.setName(Component.text(player.name, 0xFF6FFC))
+    val customName = customNameManager.forEntity(player)
+    customName.setName(Component.text(player.name, TextColor.color(0xFF6FFC)))
 }
 ```
 
