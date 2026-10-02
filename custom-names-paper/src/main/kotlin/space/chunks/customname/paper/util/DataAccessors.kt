@@ -18,6 +18,7 @@ object DataAccessors {
     private val reflectionRemapper = ReflectionRemapper.forReobfMappingsInPaperJar()
     private val setPassengersConstructor: Constructor<ClientboundSetPassengersPacket> = initSetPassengersConstructor()
 
+    // Entity
     val DATA_SHARED_FLAGS_ID: EntityDataAccessor<Byte> =
         get(Entity::class.java, "DATA_SHARED_FLAGS_ID")
 
@@ -30,11 +31,12 @@ object DataAccessors {
     val DATA_CUSTOM_NAME_VISIBLE: EntityDataAccessor<Boolean> =
         get(Entity::class.java, "DATA_CUSTOM_NAME_VISIBLE")
 
-    // Interaction entity
+    // Interaction
+    val DATA_WIDTH_ID: EntityDataAccessor<Float> =
+        get(Interaction::class.java, "DATA_WIDTH_ID")
 
-    val DATA_WIDTH_ID: EntityDataAccessor<Float> = get(Interaction::class.java, "DATA_WIDTH_ID")
-
-    val DATA_HEIGHT_ID: EntityDataAccessor<Float> = get(Interaction::class.java, "DATA_HEIGHT_ID")
+    val DATA_HEIGHT_ID: EntityDataAccessor<Float> =
+        get(Interaction::class.java, "DATA_HEIGHT_ID")
 
     fun createSetPassengersPacket(vehicleId: Int, passengerIds: IntArray): ClientboundSetPassengersPacket {
         val buf = FriendlyByteBuf(Unpooled.buffer())

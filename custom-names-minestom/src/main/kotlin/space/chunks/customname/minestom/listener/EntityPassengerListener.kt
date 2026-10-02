@@ -11,7 +11,7 @@ import space.chunks.customname.minestom.CustomNameStorage
  *
  * This matches vanilla behavior.
  */
-class EntityPassengerListener {
+object EntityPassengerListener {
 
     fun register(node: EventNode<Event>) {
         node.addListener(EntityTickEvent::class.java) { event ->

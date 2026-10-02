@@ -11,9 +11,12 @@ class PlayerQuitListener(
 ) : Listener {
 
     @EventHandler
-    fun playerQuit(event: PlayerQuitEvent) {
+    fun onQuit(event: PlayerQuitEvent) {
+        val uuid = event.player.uniqueId
+        val name = CustomNameStorage.getCustomPlayerName(uuid) ?: return
+
         plugin.server.scheduler.runTaskLater(plugin, Runnable {
-            CustomNameStorage.remove(event.player.uniqueId)
+            CustomNameStorage.remove(uuid, name)
         }, 5)
     }
 

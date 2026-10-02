@@ -16,44 +16,51 @@ import space.chunks.customname.minestom.listener.PlayerTrackerListener
 object CustomNamesMinestom {
 
     private val customNameManager = CustomNameManagerImpl()
-    private val node: EventNode<Event> = EventNode.all("custom-names")
+    private var eventNode: EventNode<Event>? = null
     private var updateTask: Task? = null
 
     fun getManager(): CustomNameManager<Entity> = customNameManager
 
-    fun enable() {
-        PlayerTrackerListener().register(node)
-        PlayerInputListener().register(node)
-        EntityPassengerListener().register(node)
-        PlayerQuitListener().register(node)
-        EntityRemoveListener().register(node)
+    fun init() {
+        if (eventNode != null) return
+
+        val node = EventNode.all("custom-names")
+        PlayerTrackerListener.register(node)
+        PlayerInputListener.register(node)
+        EntityPassengerListener.register(node)
+        PlayerQuitListener.register(node)
+        EntityRemoveListener.register(node)
 
         MinecraftServer.getGlobalEventHandler().addChild(node)
+        eventNode = node
         startUpdateTask()
     }
 
-    fun disable() {
+    fun shutdown() {
         val task = updateTask
-        if (task != null) {
-            task.cancel()
-            updateTask = null
-        }
-        MinecraftServer.getGlobalEventHandler().removeChild(node)
+        task?.cancel()
+        updateTask = null
+
+        val eventNode = eventNode ?: return
+        MinecraftServer.getGlobalEventHandler().removeChild(eventNode)
+        CustomNamesMinestom.eventNode = null
         CustomNameStorage.clear()
     }
 
     private fun startUpdateTask() {
-        updateTask = MinecraftServer.getSchedulerManager().scheduleTask({
-            CustomNameStorage.getAll().forEach { name ->
-                if (name.getTargetEntity().isRemoved) {
-                    CustomNameStorage.remove(name.getTargetEntityId())
-                } else {
-                    name.update()
+        updateTask = MinecraftServer.getSchedulerManager()
+            .buildTask {
+                CustomNameStorage.getAll().forEach { name ->
+                    if (name.getTargetEntity().isRemoved) {
+                        CustomNameStorage.remove(name.getTargetEntityId())
+                    } else {
+                        name.update()
+                    }
                 }
-            }},
-            TaskSchedule.tick(20),
-            TaskSchedule.tick(20)
-        )
+            }
+            .delay(TaskSchedule.tick(20))
+            .repeat(TaskSchedule.tick(20))
+            .schedule()
     }
 
 }

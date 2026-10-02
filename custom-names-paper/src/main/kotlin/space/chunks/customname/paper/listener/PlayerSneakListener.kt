@@ -15,7 +15,7 @@ import space.chunks.customname.paper.CustomNameStorage
 class PlayerSneakListener : Listener {
 
     @EventHandler(ignoreCancelled = true)
-    fun toggleSneak(event: PlayerToggleSneakEvent) {
+    fun onToggleSneak(event: PlayerToggleSneakEvent) {
         val playerName = CustomNameStorage.getCustomPlayerName(event.player.uniqueId)?: return
         // Does the entity have a custom name?
         if (!event.player.isInsideVehicle) {

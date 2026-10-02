@@ -47,6 +47,7 @@ subprojects {
 
     tasks.shadowJar {
         mergeServiceFiles()
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
         archiveFileName.set("${project.name}.jar")
     }
 

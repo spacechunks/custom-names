@@ -1,7 +1,6 @@
 plugins {
     alias(libs.plugins.run.paper)
     alias(libs.plugins.paperweight.userdev)
-    alias(libs.plugins.sonatype.central.portal.publisher)
 }
 
 dependencies {

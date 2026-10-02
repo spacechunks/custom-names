@@ -78,7 +78,7 @@ class CustomNameImpl(
     }
 
     fun removeFromClient(entity: Player) {
-        (entity as CraftPlayer).handle.connection.send(interaction.removePacket())
+        (entity as CraftPlayer).handle.connection.send(interaction.getRemovePacket())
     }
 
     override fun setHidden(hidden: Boolean) {

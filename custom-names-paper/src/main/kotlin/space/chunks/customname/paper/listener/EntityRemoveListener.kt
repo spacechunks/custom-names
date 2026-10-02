@@ -8,7 +8,7 @@ import space.chunks.customname.paper.CustomNameStorage
 class EntityRemoveListener : Listener {
 
     @EventHandler
-    fun removeEntity(event: EntityRemoveFromWorldEvent) {
+    fun onEntityRemove(event: EntityRemoveFromWorldEvent) {
         CustomNameStorage.remove(event.entity.uniqueId)
     }
 

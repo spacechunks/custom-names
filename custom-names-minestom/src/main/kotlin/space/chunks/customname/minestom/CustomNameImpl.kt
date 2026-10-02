@@ -138,7 +138,6 @@ class CustomNameImpl(
 
     private fun syncDataPacket(viewer: Player): EntityMetaDataPacket {
         val entries = HashMap<Int, Metadata.Entry<*>>()
-
         entries[MetadataDef.CUSTOM_NAME.index()] = Metadata.OptComponent(getName(viewer))
 
         val sneakFlag = if (targetEntitySneaking) 1 shl 1 else 0

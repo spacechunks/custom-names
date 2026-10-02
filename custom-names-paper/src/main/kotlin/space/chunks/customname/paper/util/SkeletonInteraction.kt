@@ -28,34 +28,34 @@ class SkeletonInteraction(
     private val customName: CustomNameImpl
 ) {
 
-    fun removePacket(): Packet<ClientGamePacketListener> =
-        ClientboundRemoveEntitiesPacket(this.customName.getNametagId())
-
     fun syncDataPacket(viewer: Player): Packet<ClientGamePacketListener> {
         val data: MutableList<DataValue<*>> = ArrayList()
         data.add(
             ofData(
                 DataAccessors.DATA_CUSTOM_NAME,
-                Optional.ofNullable(PaperAdventure.asVanilla(this.customName.getName(viewer)))
+                Optional.ofNullable(PaperAdventure.asVanilla(customName.getName(viewer)))
             )
         )
 
-        val sneakFlag = if (this.customName.isTargetEntitySneaking()) 1 shl 1 else 0
+        val sneakFlag = if (customName.isTargetEntitySneaking()) 1 shl 1 else 0
         val value = (sneakFlag or 0x20).toByte()
         data.add(ofData(DataAccessors.DATA_SHARED_FLAGS_ID, value))
 
-        return ClientboundSetEntityDataPacket(this.customName.getNametagId(), data)
+        return ClientboundSetEntityDataPacket(customName.getNametagId(), data)
     }
+
+    fun getRemovePacket(): Packet<ClientGamePacketListener> =
+        ClientboundRemoveEntitiesPacket(customName.getNametagId())
 
     fun getRiderPacket(): Packet<ClientGamePacketListener> =
         DataAccessors.createSetPassengersPacket(
-            this.customName.getTargetEntity().entityId,
-            this.passengerIds()
+            customName.getTargetEntity().entityId,
+            passengerIds()
         )
 
     private fun passengerIds(): IntArray {
-        val passengers: List<Entity> = this.customName.getTargetEntity().passengers
-        val includeNametag = !this.customName.isHidden()
+        val passengers: List<Entity> = customName.getTargetEntity().passengers
+        val includeNametag = !customName.isHidden()
         val size = passengers.size + (if (includeNametag) 1 else 0)
         val passengerIds = IntArray(size)
 
@@ -63,16 +63,16 @@ class SkeletonInteraction(
             passengerIds[i] = passengers[i].entityId
         }
         if (includeNametag) {
-            passengerIds[passengers.size] = this.customName.getNametagId()
+            passengerIds[passengers.size] = customName.getNametagId()
         }
         return passengerIds
     }
 
     fun initialSpawnPacket(viewer: Player): Packet<*> {
         val initialCreatePacket = ClientboundSetEntityDataPacket(
-            this.customName.getNametagId(), listOf<DataValue<*>>(
+            customName.getNametagId(), listOf<DataValue<*>>(
                 ofData(DataAccessors.DATA_WIDTH_ID, 0.6f),
-                ofData<Float>(DataAccessors.DATA_HEIGHT_ID, this.customName.getEffectiveHeight().toFloat()),
+                ofData(DataAccessors.DATA_HEIGHT_ID, customName.getEffectiveHeight().toFloat()),
                 ofData(DataAccessors.DATA_POSE, Pose.CROAKING),
                 ofData(DataAccessors.DATA_CUSTOM_NAME_VISIBLE, true)
             )
@@ -90,13 +90,13 @@ class SkeletonInteraction(
     }
 
     private fun createPacket(): Packet<ClientGamePacketListener> {
-        val location: Location = this.customName.getTargetEntity().location
+        val location: Location = customName.getTargetEntity().location
 
         return ClientboundAddEntityPacket(
-            this.customName.getNametagId(),
+            customName.getNametagId(),
             UUID.randomUUID(),
             location.x(),
-            location.y() + this.customName.getPassengerOffset(),
+            location.y() + customName.getPassengerOffset(),
             location.z(),
             0f,
             0f,

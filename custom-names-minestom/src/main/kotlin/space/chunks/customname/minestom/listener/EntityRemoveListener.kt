@@ -6,7 +6,7 @@ import net.minestom.server.event.entity.EntityDespawnEvent
 import net.minestom.server.event.instance.RemoveEntityFromInstanceEvent
 import space.chunks.customname.minestom.CustomNameStorage
 
-class EntityRemoveListener {
+object EntityRemoveListener {
 
     fun register(node: EventNode<Event>) {
         node.addListener(EntityDespawnEvent::class.java) { event ->

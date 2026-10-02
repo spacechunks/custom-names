@@ -18,16 +18,16 @@ class EntityPassengerListener(
 ) : Listener {
 
     @EventHandler(ignoreCancelled = true)
-    fun mountEntity(event: EntityMountEvent) {
+    fun onEntityMount(event: EntityMountEvent) {
         val playerName = CustomNameStorage.getCustomPlayerName(event.mount.uniqueId) ?: return
         playerName.setHidden(true)
     }
 
     @EventHandler(ignoreCancelled = true)
-    fun dismountEntity(event: EntityDismountEvent) {
+    fun onEntityDismount(event: EntityDismountEvent) {
         val playerName = CustomNameStorage.getCustomPlayerName(event.dismounted.uniqueId) ?: return
 
-        if (event.dismounted.passengers.size == 1) {
+        if (event.dismounted.passengers.isEmpty()) {
             // Run 2 ticks later, we need to ensure that the game sends the packets to update the
             // passengers.
             plugin.server.scheduler.runTaskLater(plugin, Runnable {

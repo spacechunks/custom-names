@@ -1,4 +1,4 @@
-name: release
+name: release and publish to maven central
 
 on:
   push:
@@ -9,57 +9,61 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   build:
     name: build modules and release
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: checkout repository
         uses: actions/checkout@v7
 
-      - name: Set up JDK 25
+      - name: set up jdk
         uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '25'
-          cache: 'gradle'
 
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
+      - name: set up gradle
+        uses: gradle/actions/setup-gradle@v6
 
-      - name: Build Jars
+      - name: get version
+        run: echo "PROJECT_VERSION=$(./gradlew -q properties --property version | awk '/^version:/ {print $2}')" >> $GITHUB_ENV
+
+      - name: build modules
         run: ./gradlew clean build shadowJar
 
-      - name: Get Project Version
-        id: project_version
-        run: echo "PROJECT_VERSION=$(./gradlew properties -q | grep "version:" | awk '{print $2}')" >> $GITHUB_ENV
-
-      - name: Publish to Maven Central
+      - name: publish to central
         run: |
           ./gradlew \
             :custom-names-api:publishAllPublicationsToCentralPortal \
-            :custom-names-minestom:publishAllPublicationsToCentralPortal \
-            -PsonatypeUsername="${{ secrets.SONATYPE_USERNAME }}" \
-            -PsonatypePassword="${{ secrets.SONATYPE_PASSWORD }}" \
-            -PsigningKey="${{ secrets.SIGNING_KEY }}" \
-            -PsigningPassword="${{ secrets.SIGNING_PASSWORD }}"
+            :custom-names-minestom:publishAllPublicationsToCentralPortal
+        env:
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
 
-      - name: Create Release
+      - name: create github release
         run: |
           jars=()
-          for jar in $(find . -type f -name "*.jar" -path "*/build/libs/*.jar" -not -path "./build/libs/*"); do
+          while IFS= read -r -d '' jar; do
             if [[ $(basename "$jar") =~ -[0-9]+\.[0-9]+ ]]; then
               echo "Skipping $jar due to version number"
             else
               echo "Uploading $jar"
               jars+=("$jar")
             fi
-          done
+          done < <(find . -type f -path "*/build/libs/*.jar" -not -path "./build/libs/*" -print0)
+
           gh release create "v${PROJECT_VERSION}" \
             --target main \
             --title "v${PROJECT_VERSION}" \
-            --notes "This release contains release builds for all Gradle modules." \
+            --generate-notes \
             "${jars[@]}"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

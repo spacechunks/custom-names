@@ -2,33 +2,36 @@ name: build
 
 on:
   pull_request:
-    branches:
-      - main
-    types:
-      - opened
-      - synchronize
-      - reopened
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    name: Build
+    name: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: checkout repository
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
-      - name: Set up JDK 25
+      - name: set up jdk
         uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '25'
-          cache: 'gradle'
 
-      - name: Make gradlew executable
+      - name: set up gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Build with Gradle
+      - name: build with gradle
         run: ./gradlew clean build shadowJar

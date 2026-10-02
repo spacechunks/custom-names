@@ -7,18 +7,12 @@ import org.bukkit.event.Listener
 import org.bukkit.plugin.java.JavaPlugin
 import space.chunks.customname.paper.CustomNameStorage
 
-/**
- * Responsible for hiding the name on entities that have
- * vehicles on them.
- *
- * This matches vanilla behavior.
- */
 class PlayerTrackerListener(
     private val plugin: JavaPlugin
 ) : Listener {
 
     @EventHandler
-    fun trackEntity(event: PlayerTrackEntityEvent) {
+    fun onTrackEntity(event: PlayerTrackEntityEvent) {
         val playerName = CustomNameStorage.getCustomPlayerName(event.entity.uniqueId) ?: return
         plugin.server.scheduler.runTaskLater(plugin, Runnable {
             playerName.sendToClient(event.player)
@@ -26,7 +20,7 @@ class PlayerTrackerListener(
     }
 
     @EventHandler
-    fun untrackEntity(event: PlayerUntrackEntityEvent) {
+    fun onUntrackEntity(event: PlayerUntrackEntityEvent) {
         val playerName = CustomNameStorage.getCustomPlayerName(event.entity.uniqueId) ?: return
         playerName.removeFromClient(event.player)
     }

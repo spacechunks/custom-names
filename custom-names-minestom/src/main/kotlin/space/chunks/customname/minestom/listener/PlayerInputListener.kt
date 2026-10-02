@@ -5,7 +5,14 @@ import net.minestom.server.event.EventNode
 import net.minestom.server.event.player.PlayerInputEvent
 import space.chunks.customname.minestom.CustomNameStorage
 
-class PlayerInputListener {
+/**
+ * Responsible for forwarding sneaking state over the
+ * nametag entity. This causes the name tag to appear transparent
+ * when sneaking.
+ *
+ * This matches vanilla behavior.
+ */
+object PlayerInputListener {
 
     fun register(node: EventNode<Event>) {
         node.addListener(PlayerInputEvent::class.java) { event ->

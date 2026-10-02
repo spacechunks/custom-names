@@ -2,7 +2,6 @@ package space.chunks.customname.api
 
 import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
-import org.jetbrains.annotations.Nullable
 import java.util.UUID
 
 interface CustomName {
@@ -40,7 +39,6 @@ interface CustomName {
      *
      * @return The current custom name, or null if not set.
      */
-    @Nullable
     fun getName(viewer: Audience): Component?
 
     /**

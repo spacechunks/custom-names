@@ -4,7 +4,7 @@ plugins {
 }
 
 dependencies {
-    implementation(libs.adventure.api)
+    api(libs.adventure.api)
 }
 
 publishing {
@@ -18,13 +18,13 @@ publishing {
 centralPortal {
     name = project.name
 
-    username = project.findProperty("sonatypeUsername") as? String
-    password = project.findProperty("sonatypePassword") as? String
+    username = System.getenv("SONATYPE_USERNAME")
+    password = System.getenv("SONATYPE_PASSWORD")
 
     pom {
         name.set("Custom Names")
         description.set("An API that allows you to register custom names on top of entities. These entities are fully client side, and corretly synced between players.")
-        url.set("https://github.com/SpaceChunks/custom-names")
+        url.set("https://github.com/spacechunks/custom-names")
 
         developers {
             developer {
@@ -46,8 +46,8 @@ centralPortal {
 }
 
 signing {
-    val signingKey = findProperty("SIGNING_KEY") as? String
-    val signingPassword = findProperty("SIGNING_PASSWORD") as? String
+    val signingKey = System.getenv("SIGNING_KEY")
+    val signingPassword = System.getenv("SIGNING_PASSWORD")
     if (signingKey != null && signingPassword != null) {
         useInMemoryPgpKeys(signingKey, signingPassword)
     } else {
