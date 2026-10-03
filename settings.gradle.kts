@@ -11,7 +11,8 @@ plugins {
 
 include(
     "custom-names-api",
-    "custom-names-plugin",
+    "custom-names-minestom",
+    "custom-names-paper",
 )
 
 rootProject.name = "custom-names"

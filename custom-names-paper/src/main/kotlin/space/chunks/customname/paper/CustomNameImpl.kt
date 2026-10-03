@@ -1,5 +1,6 @@
-package space.chunks.customname.plugin
+package space.chunks.customname.paper
 
+import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
 import net.minecraft.network.protocol.Packet
 import net.minecraft.network.protocol.game.ClientGamePacketListener
@@ -7,38 +8,33 @@ import org.bukkit.craftbukkit.entity.CraftEntity
 import org.bukkit.craftbukkit.entity.CraftPlayer
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
-import org.bukkit.plugin.java.JavaPlugin
-import org.bukkit.scheduler.BukkitRunnable
-import org.bukkit.scheduler.BukkitTask
 import space.chunks.customname.api.CustomName
-import space.chunks.customname.plugin.util.SkeletonInteraction
+import space.chunks.customname.paper.util.SkeletonInteraction
+import java.util.UUID
 import java.util.function.Consumer
 
 class CustomNameImpl(
-    private val plugin: JavaPlugin,
     private val targetEntity: Entity
 ) : CustomName {
 
     private val interaction = SkeletonInteraction(this)
 
     // Target entity constants
-    private var effectiveHeight = 0.0
-    private var passengerOffset = 0.0
+    private val effectiveHeight: Double
+    private val passengerOffset: Double
 
     // Custom name constants
-    private var nametagEntityId = 0
+    private val nametagEntityId: Int
 
     // States
     private var targetEntitySneaking = false
 
-    private var nameCallback: (viewer: Player) -> Component? = { null }
+    private var nameCallback: (viewer: Audience) -> Component? = { null }
     private var hidden = false
-
-    private var task: BukkitTask? = null
 
     init {
         val nmsEntity = (targetEntity as CraftEntity).handle
-        this.nametagEntityId = nmsEntity.level().nextEntityId
+        nametagEntityId = nmsEntity.level().nextEntityId
 
         val ridingOffset = nmsEntity
             .getPassengerRidingPosition(nmsEntity)
@@ -49,56 +45,58 @@ class CustomNameImpl(
         // First, negate the riding offset to get to the bounding of the entity's bounding box
         // Negate the natural nametag offset of interaction entities (0.5)
         // Add the actual offset of the nametag
-        this.effectiveHeight = -ridingOffset - 0.5 + nametagOffset
-        this.passengerOffset = ridingOffset
-
-        this.task = object : BukkitRunnable() {
-            override fun run() {
-                val riderPacket: Packet<ClientGamePacketListener> =
-                    this@CustomNameImpl.interaction.getRiderPacket()
-
-                for (player in targetEntity.trackedPlayers) {
-                    (player as CraftPlayer).handle.connection.send(riderPacket)
-                }
-            }
-        }.runTaskTimer(plugin, 20, 20)
+        effectiveHeight = -ridingOffset - 0.5 + nametagOffset
+        passengerOffset = ridingOffset
     }
 
-    override fun setName(nameCallback: (viewer: Player) -> Component?) {
+    fun update() {
+        if (hidden) return
+
+        val trackers = targetEntity.trackedBy
+        if (trackers.isEmpty()) return
+
+        val riderPacket: Packet<ClientGamePacketListener> = interaction.getRiderPacket()
+        for (player in trackers) {
+            (player as CraftPlayer).handle.connection.send(riderPacket)
+        }
+    }
+
+    override fun setName(nameCallback: (viewer: Audience) -> Component?) {
         this.nameCallback = nameCallback
-        this.syncData()
+        syncData()
     }
 
     override fun setTargetEntitySneaking(targetEntitySneaking: Boolean) {
         this.targetEntitySneaking = targetEntitySneaking
-        this.syncData()
+        syncData()
     }
 
     fun sendToClient(entity: Player) {
         if (!hidden) {
-            (entity as CraftPlayer).handle.connection
-                .send(interaction.initialSpawnPacket(entity))
+            (entity as CraftPlayer).handle.connection.send(interaction.initialSpawnPacket(entity))
         }
     }
 
     fun removeFromClient(entity: Player) {
-        (entity as CraftPlayer).handle.connection.send(interaction.removePacket())
+        (entity as CraftPlayer).handle.connection.send(interaction.getRemovePacket())
     }
 
     override fun setHidden(hidden: Boolean) {
         this.hidden = hidden
-        this.runOnTrackers { player ->
+        runOnTrackers { player ->
             if (hidden) removeFromClient(player) else sendToClient(player)
         }
     }
 
-    override fun getName(viewer: Player): Component? = nameCallback(viewer)
+    override fun getName(viewer: Audience): Component? = nameCallback(viewer)
     override fun getNametagId(): Int = nametagEntityId
-    override fun getTargetEntity(): Entity = targetEntity
+    override fun getTargetEntityId(): UUID = targetEntity.uniqueId
     override fun isTargetEntitySneaking(): Boolean = targetEntitySneaking
     override fun getEffectiveHeight(): Double = effectiveHeight
     override fun getPassengerOffset(): Double = passengerOffset
     override fun isHidden(): Boolean = hidden
+
+    fun getTargetEntity(): Entity = targetEntity
 
     // Utilities
     private fun syncData() {
@@ -114,9 +112,5 @@ class CustomNameImpl(
         for (player in targetEntity.trackedBy) {
             consumer.accept(player)
         }
-    }
-
-    fun close() {
-        task?.cancel()
     }
 }

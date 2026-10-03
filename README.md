@@ -3,7 +3,7 @@ This is a Kotlin-Port of [Owen1212055's Custom Names POC](https://github.com/Owe
 
 ## Usage
 
-First, you have to add the plugin to your `build.gradle.kts`:
+First, you have to add the dependency to your `build.gradle.kts`:
 
 ```kotlin
 repositories {
@@ -11,37 +11,40 @@ repositories {
 }
 
 dependencies {
-    compileOnly("space.chunks.custom-names:custom-names-api:1.0.6")
+    // Paper
+    compileOnly("space.chunks.custom-names:custom-names-api:1.2.0")
+    // Minestom
+    implementation("space.chunks.custom-names:custom-names-minestom:1.2.0")
 }
 ```
 
-You can access the api via the Bukkit Service Manager, but first you have to make sure, that your plugin loads after the CustomNames plugin. You can do this by adding the following to your `paper-plugin.yml`:
+### Paper
 
-```yaml
-# paper-plugin.yml
-dependencies:
-  server:
-    CustomNames:
-        load: BEFORE
-        required: true
-        join-classpath: true
-```
-
-*For more information on the `paper-plugin.yml`, check the [PaperMC Wiki](https://docs.papermc.io/paper/dev/getting-started/paper-plugins).*
-
-Here is an example of how to use it inside the `PlayerJoinEvent`:
+You can access the api via the Bukkit Service Manager. Make sure to add `CustomNames` as a plugin dependency in your `paper-plugin.yml` (see the [PaperMC Wiki](https://docs.papermc.io/paper/dev/getting-started/paper-plugins) for more information).
 
 ```kotlin
 @EventHandler
 fun onJoin(event: PlayerJoinEvent) {
     val player = event.player
+
+    // Load this in onEnable and pass it to the listener class. Don't load it every time a player joins
+    val customNameManager = Bukkit.getServicesManager().load(CustomNameManager::class.java) 
+        ?: throw IllegalStateException("CustomNameManager not loaded")
     
-    // Load this in the onEnable and pass it to the listener class. Don't load it every time a player joins
-    val customNameManager = Bukkit.getServicesManager().load(CustomNameManager::class.java)?: throw IllegalStateException("CustomNameManager not loaded")
-    
-    val name = customNameManager.forEntity(entity)
-    name.setName(Component.text(player.name, 0xFF6FFC))
+    val customName = customNameManager.forEntity(player)
+    customName.setName(Component.text(player.name, TextColor.color(0xFF6FFC)))
 }
+```
+
+### Minestom
+
+Call `CustomNamesMinestom.init()` once on startup, then access the manager directly:
+
+```kotlin
+CustomNamesMinestom.init()
+
+val customName = CustomNamesMinestom.getManager().forEntity(player)
+customName.setName(Component.text(player.username, TextColor.color(0xFF6FFC)))
 ```
 
 ## Future Plans

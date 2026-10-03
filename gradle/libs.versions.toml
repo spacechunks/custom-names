@@ -1,12 +1,15 @@
 [versions]
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 
 shadow = "9.6.1"
-run-task = "3.0.2"
-paperweight = "2.0.0-beta.21"
+run-task = "3.1.0"
+paperweight = "2.0.0-beta.23"
 sonatype-central-portal-publisher = "1.2.4"
 
-paper-api = "26.2.build.+"
+paper-api = "26.3.build.+"
+minestom = "26_3-SNAPSHOT"
+
+adventure = "5.2.0"
 reflection-remapper = "0.1.3"
 
 [libraries]
@@ -15,6 +18,10 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper-api" }
 reflection-remapper = { module = "xyz.jpenilla:reflection-remapper", version.ref = "reflection-remapper" }
+
+adventure-api = { module = "net.kyori:adventure-api", version.ref = "adventure" }
+
+minestom = { module = "net.minestom:minestom", version.ref = "minestom" }
 
 [plugins]
 kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

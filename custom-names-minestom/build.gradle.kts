@@ -4,7 +4,8 @@ plugins {
 }
 
 dependencies {
-    api(libs.adventure.api)
+    implementation(libs.minestom)
+    api(project(":custom-names-api"))
 }
 
 publishing {
