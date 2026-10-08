@@ -17,18 +17,27 @@ object CustomNameStorage {
 
     fun remove(uuid: UUID): CustomNameImpl? {
         val name = storage.remove(uuid)
-        name?.setHidden(true)
+        if (name != null) {
+            name.cancelUpdateTask()
+            name.setHidden(true)
+        }
         return name
     }
 
     fun remove(uuid: UUID, name: CustomNameImpl): Boolean {
         val removed = storage.remove(uuid, name)
-        if (removed) name.setHidden(true)
+        if (removed) {
+            name.cancelUpdateTask()
+            name.setHidden(true)
+        }
         return removed
     }
 
     fun clear() {
-        storage.values.forEach { name -> name.setHidden(true) }
+        storage.values.forEach { name ->
+            name.cancelUpdateTask()
+            name.setHidden(true)
+        }
         storage.clear()
     }
 
