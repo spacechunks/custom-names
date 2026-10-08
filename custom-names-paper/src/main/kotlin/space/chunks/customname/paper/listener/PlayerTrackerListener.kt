@@ -14,9 +14,9 @@ class PlayerTrackerListener(
     @EventHandler
     fun onTrackEntity(event: PlayerTrackEntityEvent) {
         val playerName = CustomNameStorage.getCustomPlayerName(event.entity.uniqueId) ?: return
-        plugin.server.scheduler.runTaskLater(plugin, Runnable {
+        event.entity.scheduler.runDelayed(plugin, {
             playerName.sendToClient(event.player)
-        }, 1)
+        }, null, 1)
     }
 
     @EventHandler
