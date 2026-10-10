@@ -30,9 +30,7 @@ class EntityPassengerListener(
         if (event.dismounted.passengers.isEmpty()) {
             // Run 2 ticks later, we need to ensure that the game sends the packets to update the
             // passengers.
-            plugin.server.scheduler.runTaskLater(plugin, Runnable {
-                playerName.setHidden(false)
-            }, 2)
+            event.dismounted.scheduler.runDelayed(plugin, { playerName.setHidden(false) }, null, 2)
         }
     }
 

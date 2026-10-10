@@ -1,5 +1,6 @@
 package space.chunks.customname.paper.listener
 
+import org.bukkit.Bukkit
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerQuitEvent
@@ -15,7 +16,7 @@ class PlayerQuitListener(
         val uuid = event.player.uniqueId
         val name = CustomNameStorage.getCustomPlayerName(uuid) ?: return
 
-        plugin.server.scheduler.runTaskLater(plugin, Runnable {
+        Bukkit.getGlobalRegionScheduler().runDelayed(plugin, {
             CustomNameStorage.remove(uuid, name)
         }, 5)
     }

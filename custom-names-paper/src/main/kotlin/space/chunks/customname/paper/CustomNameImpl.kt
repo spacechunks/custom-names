@@ -1,19 +1,23 @@
 package space.chunks.customname.paper
 
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
 import net.minecraft.network.protocol.Packet
 import net.minecraft.network.protocol.game.ClientGamePacketListener
+import org.bukkit.Bukkit
 import org.bukkit.craftbukkit.entity.CraftEntity
 import org.bukkit.craftbukkit.entity.CraftPlayer
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
+import org.bukkit.plugin.java.JavaPlugin
 import space.chunks.customname.api.CustomName
 import space.chunks.customname.paper.util.SkeletonInteraction
 import java.util.UUID
 import java.util.function.Consumer
 
 class CustomNameImpl(
+    private val plugin: JavaPlugin,
     private val targetEntity: Entity
 ) : CustomName {
 
@@ -27,10 +31,17 @@ class CustomNameImpl(
     private val nametagEntityId: Int
 
     // States
+    @Volatile
     private var targetEntitySneaking = false
 
+    @Volatile
     private var nameCallback: (viewer: Audience) -> Component? = { null }
+
+    @Volatile
     private var hidden = false
+
+    @Volatile
+    private var updateTask: ScheduledTask? = null
 
     init {
         val nmsEntity = (targetEntity as CraftEntity).handle
@@ -47,6 +58,21 @@ class CustomNameImpl(
         // Add the actual offset of the nametag
         effectiveHeight = -ridingOffset - 0.5 + nametagOffset
         passengerOffset = ridingOffset
+    }
+
+    fun startUpdateTask() {
+        // Runs on the thread owning the target entity
+        updateTask = targetEntity.scheduler.runAtFixedRate(plugin, {
+            if (!targetEntity.isValid) {
+                CustomNameStorage.remove(targetEntity.uniqueId, this)
+            } else {
+                update()
+            }
+        }, { CustomNameStorage.remove(targetEntity.uniqueId, this) }, 20, 20)
+    }
+
+    fun cancelUpdateTask() {
+        updateTask?.cancel()
     }
 
     fun update() {
@@ -109,6 +135,14 @@ class CustomNameImpl(
     }
 
     private fun runOnTrackers(consumer: Consumer<Player>) {
+        // The trackers may only be accessed by the thread owning the target entity
+        if (!Bukkit.isOwnedByCurrentRegion(targetEntity)) {
+            if (plugin.isEnabled) {
+                targetEntity.scheduler.run(plugin, { runOnTrackers(consumer) }, null)
+            }
+            return
+        }
+
         for (player in targetEntity.trackedBy) {
             consumer.accept(player)
         }

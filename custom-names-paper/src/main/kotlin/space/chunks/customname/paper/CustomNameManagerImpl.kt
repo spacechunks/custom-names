@@ -21,34 +21,21 @@ class CustomNameManagerImpl(
         pluginManager.registerEvents(EntityPassengerListener(plugin), plugin)
         pluginManager.registerEvents(PlayerQuitListener(plugin), plugin)
         pluginManager.registerEvents(EntityRemoveListener(), plugin)
-
-        startUpdateTask()
     }
 
     fun stop() {
-        plugin.server.scheduler.cancelTasks(plugin)
         CustomNameStorage.clear()
-    }
-
-    private fun startUpdateTask() {
-        plugin.server.scheduler.runTaskTimer(plugin, Runnable {
-            for (customName in CustomNameStorage.getAll()) {
-                if (!customName.getTargetEntity().isValid) {
-                    CustomNameStorage.remove(customName.getTargetEntityId())
-                } else {
-                    customName.update()
-                }
-            }
-        }, 20, 20)
+        Bukkit.getGlobalRegionScheduler().cancelTasks(plugin)
     }
 
     override fun forEntity(entity: Entity): CustomNameImpl {
         val existing = CustomNameStorage.getCustomPlayerName(entity.uniqueId)
         if (existing != null) return existing
 
-        val customName = CustomNameImpl(entity)
+        val customName = CustomNameImpl(plugin, entity)
         CustomNameStorage.register(entity.uniqueId, customName)
         customName.setHidden(false)
+        customName.startUpdateTask()
 
         return customName
     }
