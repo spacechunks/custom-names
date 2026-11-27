@@ -14,19 +14,13 @@ import net.minecraft.network.syncher.SynchedEntityData.DataValue
 import net.minecraft.world.entity.Display
 import net.minecraft.world.entity.EntityTypes
 import net.minecraft.world.phys.Vec3
-import org.bukkit.Location
-import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
 import org.joml.Vector3f
 import space.chunks.customname.paper.CustomNameImpl
 import java.util.UUID
 
-/**
- * This classed is used for sending packets related to the text display entity
- * sent to the client.
- */
-class SkeletonTextDisplay(
-    private val customName: CustomNameImpl
+class CustomNamePackets(
+    private val customName: CustomNameImpl,
 ) {
 
     fun syncDataPacket(viewer: Player): Packet<ClientGamePacketListener> {
@@ -39,11 +33,12 @@ class SkeletonTextDisplay(
         val opacity = if (sneaking) SNEAKING_TEXT_OPACITY else DEFAULT_TEXT_OPACITY
 
         return ClientboundSetEntityDataPacket(
-            customName.getNametagId(), listOf<DataValue<*>>(
+            customName.getNametagId(),
+            listOf<DataValue<*>>(
                 ofData(DataAccessors.DATA_TEXT_ID, text),
                 ofData(DataAccessors.DATA_STYLE_FLAGS_ID, (backgroundFlag or seeThroughFlag).toByte()),
-                ofData(DataAccessors.DATA_TEXT_OPACITY_ID, opacity)
-            )
+                ofData(DataAccessors.DATA_TEXT_OPACITY_ID, opacity),
+            ),
         )
     }
 
@@ -51,49 +46,37 @@ class SkeletonTextDisplay(
         ClientboundRemoveEntitiesPacket(customName.getNametagId())
 
     fun getRiderPacket(): Packet<ClientGamePacketListener> =
-        DataAccessors.createSetPassengersPacket(
-            customName.getTargetEntity().entityId,
-            passengerIds()
-        )
+        DataAccessors.createSetPassengersPacket(customName.getTargetEntity().entityId, passengerIds())
 
     private fun passengerIds(): IntArray {
-        val passengers: List<Entity> = customName.getTargetEntity().passengers
-        val includeNametag = !customName.isHidden()
-        val size = passengers.size + (if (includeNametag) 1 else 0)
-        val passengerIds = IntArray(size)
-
-        for (i in passengers.indices) {
-            passengerIds[i] = passengers[i].entityId
-        }
-        if (includeNametag) {
-            passengerIds[passengers.size] = customName.getNametagId()
-        }
-        return passengerIds
+        val passengerIds = customName.getTargetEntity().passengers.map { passenger -> passenger.entityId }
+        if (customName.isHidden()) return passengerIds.toIntArray()
+        return (passengerIds + customName.getNametagId()).toIntArray()
     }
 
     fun initialSpawnPacket(viewer: Player): Packet<*> {
         val initialCreatePacket = ClientboundSetEntityDataPacket(
-            customName.getNametagId(), listOf<DataValue<*>>(
-                ofData(DataAccessors.DATA_TRANSLATION_ID, Vector3f(0f, customName.getEffectiveHeight().toFloat(), 0f)),
+            customName.getNametagId(),
+            listOf<DataValue<*>>(
+                ofData(DataAccessors.DATA_TRANSLATION_ID, Vector3f(0f, customName.getTextOffset().toFloat(), 0f)),
                 ofData(DataAccessors.DATA_BILLBOARD_RENDER_CONSTRAINTS_ID, BILLBOARD_CENTER),
                 ofData(DataAccessors.DATA_LINE_WIDTH_ID, Int.MAX_VALUE),
-                ofData(DataAccessors.DATA_BACKGROUND_COLOR_ID, 0)
-            )
+                ofData(DataAccessors.DATA_BACKGROUND_COLOR_ID, 0),
+            ),
         )
-        val syncData = syncDataPacket(viewer)
 
         return ClientboundBundlePacket(
             listOf<Packet<in ClientGamePacketListener>>(
                 createPacket(),
                 initialCreatePacket,
-                syncData,
-                this.getRiderPacket()
-            )
+                syncDataPacket(viewer),
+                getRiderPacket(),
+            ),
         )
     }
 
     private fun createPacket(): Packet<ClientGamePacketListener> {
-        val location: Location = customName.getTargetEntity().location
+        val location = customName.getTargetEntity().location
 
         return ClientboundAddEntityPacket(
             customName.getNametagId(),
@@ -113,9 +96,11 @@ class SkeletonTextDisplay(
     private fun <T : Any> ofData(data: EntityDataAccessor<T>, value: T): DataValue<T> =
         DataItem(data, value).value()
 
-    private companion object {
-        const val BILLBOARD_CENTER: Byte = 3
-        const val DEFAULT_TEXT_OPACITY: Byte = -1
-        const val SNEAKING_TEXT_OPACITY: Byte = -128
+    companion object {
+        const val NAMETAG_OFFSET = 0.5
+        const val LINE_HEIGHT = 9 * 0.025
+        private const val BILLBOARD_CENTER: Byte = 3
+        private const val DEFAULT_TEXT_OPACITY: Byte = -1
+        private const val SNEAKING_TEXT_OPACITY: Byte = -128
     }
 }

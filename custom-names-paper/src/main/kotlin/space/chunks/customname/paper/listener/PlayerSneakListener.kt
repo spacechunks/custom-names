@@ -5,22 +5,15 @@ import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerToggleSneakEvent
 import space.chunks.customname.paper.CustomNameStorage
 
-/**
- * Responsible for forwarding sneaking state over the
- * nametag entity. This causes the name tag to appear transparent
- * when sneaking.
- *
- * This matches vanilla behavior.
- */
+// forwards the sneak state, so the name turns transparent like a vanilla name tag
 class PlayerSneakListener : Listener {
 
     @EventHandler(ignoreCancelled = true)
     fun onToggleSneak(event: PlayerToggleSneakEvent) {
-        val playerName = CustomNameStorage.getCustomPlayerName(event.player.uniqueId)?: return
-        // Does the entity have a custom name?
-        if (!event.player.isInsideVehicle) {
-            playerName.setTargetEntitySneaking(event.isSneaking)
-        }
+        val customName = CustomNameStorage.get(event.player.uniqueId) ?: return
+        if (event.player.isInsideVehicle) return
+
+        customName.setTargetEntitySneaking(event.isSneaking)
     }
 
 }

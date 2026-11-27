@@ -8,16 +8,16 @@ import org.bukkit.plugin.java.JavaPlugin
 import space.chunks.customname.paper.CustomNameStorage
 
 class PlayerQuitListener(
-    private val plugin: JavaPlugin
+    private val plugin: JavaPlugin,
 ) : Listener {
 
     @EventHandler
     fun onQuit(event: PlayerQuitEvent) {
         val uuid = event.player.uniqueId
-        val name = CustomNameStorage.getCustomPlayerName(uuid) ?: return
+        val customName = CustomNameStorage.get(uuid) ?: return
 
         Bukkit.getGlobalRegionScheduler().runDelayed(plugin, {
-            CustomNameStorage.remove(uuid, name)
+            CustomNameStorage.remove(uuid, customName)
         }, 5)
     }
 

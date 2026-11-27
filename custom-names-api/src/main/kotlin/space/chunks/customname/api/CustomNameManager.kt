@@ -1,17 +1,17 @@
 package space.chunks.customname.api
 
+/**
+ * Creates and removes the [CustomName]s of entities of type [E].
+ */
 interface CustomNameManager<E : Any> {
 
     /**
-     * Creates a new custom name for the given entity.
-     * @param entity The entity to create a custom name for.
-     * @return The custom name.
+     * Returns the [CustomName] of the [entity], creating it if it doesn't exist yet.
      */
     fun forEntity(entity: E): CustomName
 
     /**
-     * Unregisters the custom name for the given entity.
-     * @param entity The entity to unregister the custom name for.
+     * Removes the [CustomName] of the [entity].
      */
     fun unregister(entity: E)
 

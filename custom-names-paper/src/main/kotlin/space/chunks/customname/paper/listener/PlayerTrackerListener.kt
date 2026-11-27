@@ -8,21 +8,21 @@ import org.bukkit.plugin.java.JavaPlugin
 import space.chunks.customname.paper.CustomNameStorage
 
 class PlayerTrackerListener(
-    private val plugin: JavaPlugin
+    private val plugin: JavaPlugin,
 ) : Listener {
 
     @EventHandler
     fun onTrackEntity(event: PlayerTrackEntityEvent) {
-        val playerName = CustomNameStorage.getCustomPlayerName(event.entity.uniqueId) ?: return
+        val customName = CustomNameStorage.get(event.entity.uniqueId) ?: return
         event.entity.scheduler.runDelayed(plugin, {
-            playerName.sendToClient(event.player)
+            customName.sendToClient(event.player)
         }, null, 1)
     }
 
     @EventHandler
     fun onUntrackEntity(event: PlayerUntrackEntityEvent) {
-        val playerName = CustomNameStorage.getCustomPlayerName(event.entity.uniqueId) ?: return
-        playerName.removeFromClient(event.player)
+        val customName = CustomNameStorage.get(event.entity.uniqueId) ?: return
+        customName.removeFromClient(event.player)
     }
 
 }

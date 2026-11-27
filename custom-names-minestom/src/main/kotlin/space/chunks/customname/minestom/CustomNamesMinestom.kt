@@ -37,8 +37,7 @@ object CustomNamesMinestom {
     }
 
     fun shutdown() {
-        val task = updateTask
-        task?.cancel()
+        updateTask?.cancel()
         updateTask = null
 
         val eventNode = eventNode ?: return

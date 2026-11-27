@@ -3,8 +3,6 @@ package space.chunks.customname.paper
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
-import net.minecraft.network.protocol.Packet
-import net.minecraft.network.protocol.game.ClientGamePacketListener
 import net.minecraft.world.entity.EntityAttachment
 import org.bukkit.Bukkit
 import org.bukkit.craftbukkit.entity.CraftEntity
@@ -13,25 +11,21 @@ import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
 import space.chunks.customname.api.CustomName
-import space.chunks.customname.paper.util.SkeletonTextDisplay
+import space.chunks.customname.paper.util.CustomNamePackets
 import java.util.UUID
 import java.util.function.Consumer
 
 class CustomNameImpl(
     private val plugin: JavaPlugin,
-    private val targetEntity: Entity
+    private val targetEntity: Entity,
 ) : CustomName {
 
-    private val textDisplay = SkeletonTextDisplay(this)
+    private val packets = CustomNamePackets(this)
 
-    // Target entity constants
-    private val effectiveHeight: Double
+    private val textOffset: Double
     private val passengerOffset: Double
-
-    // Custom name constants
     private val nametagEntityId: Int
 
-    // States
     @Volatile
     private var targetEntitySneaking = false
 
@@ -54,14 +48,13 @@ class CustomNameImpl(
 
         val nametagOffset = nmsEntity.attachments.getClamped(EntityAttachment.NAME_TAG, 0, 0f).y
 
-        // Vanilla renders the top of a name tag 0.5 blocks above the name tag attachment,
-        // while a text display renders the bottom of its text at its origin
-        effectiveHeight = nametagOffset + NAMETAG_OFFSET - LINE_HEIGHT - ridingOffset
+        // vanilla draws the top of a name tag 0.5 above its attachment, but a text display draws the bottom of its text at its origin
+        textOffset = nametagOffset + CustomNamePackets.NAMETAG_OFFSET - CustomNamePackets.LINE_HEIGHT - ridingOffset
         passengerOffset = ridingOffset
     }
 
     fun startUpdateTask() {
-        // Runs on the thread owning the target entity
+        // runs on the thread owning the target entity, so the trackers can be accessed safely
         updateTask = targetEntity.scheduler.runAtFixedRate(plugin, {
             if (!targetEntity.isValid) {
                 CustomNameStorage.remove(targetEntity.uniqueId, this)
@@ -81,7 +74,7 @@ class CustomNameImpl(
         val trackers = targetEntity.trackedBy
         if (trackers.isEmpty()) return
 
-        val riderPacket: Packet<ClientGamePacketListener> = textDisplay.getRiderPacket()
+        val riderPacket = packets.getRiderPacket()
         for (player in trackers) {
             (player as CraftPlayer).handle.connection.send(riderPacket)
         }
@@ -92,19 +85,19 @@ class CustomNameImpl(
         syncData()
     }
 
-    override fun setTargetEntitySneaking(targetEntitySneaking: Boolean) {
+    fun setTargetEntitySneaking(targetEntitySneaking: Boolean) {
         this.targetEntitySneaking = targetEntitySneaking
         syncData()
     }
 
     fun sendToClient(entity: Player) {
         if (!hidden) {
-            (entity as CraftPlayer).handle.connection.send(textDisplay.initialSpawnPacket(entity))
+            (entity as CraftPlayer).handle.connection.send(packets.initialSpawnPacket(entity))
         }
     }
 
     fun removeFromClient(entity: Player) {
-        (entity as CraftPlayer).handle.connection.send(textDisplay.getRemovePacket())
+        (entity as CraftPlayer).handle.connection.send(packets.getRemovePacket())
     }
 
     override fun setHidden(hidden: Boolean) {
@@ -115,27 +108,25 @@ class CustomNameImpl(
     }
 
     override fun getName(viewer: Audience): Component? = nameCallback(viewer)
-    override fun getNametagId(): Int = nametagEntityId
     override fun getTargetEntityId(): UUID = targetEntity.uniqueId
-    override fun isTargetEntitySneaking(): Boolean = targetEntitySneaking
-    override fun getEffectiveHeight(): Double = effectiveHeight
-    override fun getPassengerOffset(): Double = passengerOffset
     override fun isHidden(): Boolean = hidden
 
+    fun getNametagId(): Int = nametagEntityId
+    fun isTargetEntitySneaking(): Boolean = targetEntitySneaking
+    fun getTextOffset(): Double = textOffset
+    fun getPassengerOffset(): Double = passengerOffset
     fun getTargetEntity(): Entity = targetEntity
 
-    // Utilities
     private fun syncData() {
         if (hidden) return
 
         runOnTrackers { player ->
-            val packet = textDisplay.syncDataPacket(player)
-            (player as CraftPlayer).handle.connection.send(packet)
+            (player as CraftPlayer).handle.connection.send(packets.syncDataPacket(player))
         }
     }
 
     private fun runOnTrackers(consumer: Consumer<Player>) {
-        // The trackers may only be accessed by the thread owning the target entity
+        // trackers may only be accessed by the thread owning the target entity, so we hop over to it first
         if (!Bukkit.isOwnedByCurrentRegion(targetEntity)) {
             if (plugin.isEnabled) {
                 targetEntity.scheduler.run(plugin, { runOnTrackers(consumer) }, null)
@@ -146,10 +137,5 @@ class CustomNameImpl(
         for (player in targetEntity.trackedBy) {
             consumer.accept(player)
         }
-    }
-
-    private companion object {
-        const val NAMETAG_OFFSET = 0.5
-        const val LINE_HEIGHT = 9 * 0.025
     }
 }

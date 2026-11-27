@@ -5,24 +5,16 @@ import net.minestom.server.event.EventNode
 import net.minestom.server.event.player.PlayerInputEvent
 import space.chunks.customname.minestom.CustomNameStorage
 
-/**
- * Responsible for forwarding sneaking state over the
- * nametag entity. This causes the name tag to appear transparent
- * when sneaking.
- *
- * This matches vanilla behavior.
- */
+// forwards the sneak state, so the name turns transparent like a vanilla name tag
 object PlayerInputListener {
 
     fun register(node: EventNode<Event>) {
         node.addListener(PlayerInputEvent::class.java) { event ->
-            if (event.hasPressedShiftKey() || event.hasReleasedShiftKey()) {
-                val playerName = CustomNameStorage.getCustomPlayerName(event.player.uuid) ?: return@addListener
+            if (!event.hasPressedShiftKey() && !event.hasReleasedShiftKey()) return@addListener
+            if (event.player.vehicle != null) return@addListener
 
-                if (event.player.vehicle == null) {
-                    playerName.setTargetEntitySneaking(event.isHoldingShiftKey)
-                }
-            }
+            val customName = CustomNameStorage.get(event.player.uuid) ?: return@addListener
+            customName.setTargetEntitySneaking(event.isHoldingShiftKey)
         }
     }
 

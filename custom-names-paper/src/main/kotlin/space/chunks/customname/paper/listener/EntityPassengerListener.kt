@@ -7,31 +7,24 @@ import org.bukkit.event.entity.EntityMountEvent
 import org.bukkit.plugin.java.JavaPlugin
 import space.chunks.customname.paper.CustomNameStorage
 
-/**
- * Responsible for hiding the name on entities that have
- * vehicles on them.
- *
- * This matches vanilla behavior.
- */
+// hides the name while the entity carries passengers, just like vanilla does
 class EntityPassengerListener(
-    private val plugin: JavaPlugin
+    private val plugin: JavaPlugin,
 ) : Listener {
 
     @EventHandler(ignoreCancelled = true)
     fun onEntityMount(event: EntityMountEvent) {
-        val playerName = CustomNameStorage.getCustomPlayerName(event.mount.uniqueId) ?: return
-        playerName.setHidden(true)
+        val customName = CustomNameStorage.get(event.mount.uniqueId) ?: return
+        customName.setHidden(true)
     }
 
     @EventHandler(ignoreCancelled = true)
     fun onEntityDismount(event: EntityDismountEvent) {
-        val playerName = CustomNameStorage.getCustomPlayerName(event.dismounted.uniqueId) ?: return
+        val customName = CustomNameStorage.get(event.dismounted.uniqueId) ?: return
+        if (event.dismounted.passengers.isNotEmpty()) return
 
-        if (event.dismounted.passengers.isEmpty()) {
-            // Run 2 ticks later, we need to ensure that the game sends the packets to update the
-            // passengers.
-            event.dismounted.scheduler.runDelayed(plugin, { playerName.setHidden(false) }, null, 2)
-        }
+        // the game sends the passenger update a bit later, so we wait 2 ticks before showing the name again
+        event.dismounted.scheduler.runDelayed(plugin, { customName.setHidden(false) }, null, 2)
     }
 
 }

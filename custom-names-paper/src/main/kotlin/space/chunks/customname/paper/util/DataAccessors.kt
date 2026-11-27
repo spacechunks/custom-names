@@ -16,14 +16,12 @@ object DataAccessors {
     private val reflectionRemapper = ReflectionRemapper.forReobfMappingsInPaperJar()
     private val setPassengersConstructor: Constructor<ClientboundSetPassengersPacket> = initSetPassengersConstructor()
 
-    // Display
     val DATA_TRANSLATION_ID: EntityDataAccessor<Vector3fc> =
         get(Display::class.java, "DATA_TRANSLATION_ID")
 
     val DATA_BILLBOARD_RENDER_CONSTRAINTS_ID: EntityDataAccessor<Byte> =
         get(Display::class.java, "DATA_BILLBOARD_RENDER_CONSTRAINTS_ID")
 
-    // Text display
     val DATA_TEXT_ID: EntityDataAccessor<Component> =
         get(Display.TextDisplay::class.java, "DATA_TEXT_ID")
 
@@ -59,10 +57,10 @@ object DataAccessors {
                 .findStaticGetter(
                     clazz,
                     reflectionRemapper.remapFieldName(clazz, name),
-                    EntityDataAccessor::class.java
+                    EntityDataAccessor::class.java,
                 ).invoke() as EntityDataAccessor<T>
         } catch (e: Throwable) {
-            throw RuntimeException(e)
+            throw IllegalStateException("Couldn't access data accessor $name of ${clazz.simpleName}", e)
         }
     }
 }

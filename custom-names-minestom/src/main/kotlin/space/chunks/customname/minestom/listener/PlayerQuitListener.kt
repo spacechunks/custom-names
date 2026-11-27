@@ -12,10 +12,10 @@ object PlayerQuitListener {
     fun register(node: EventNode<Event>) {
         node.addListener(PlayerDisconnectEvent::class.java) { event ->
             val uuid = event.player.uuid
-            val name = CustomNameStorage.getCustomPlayerName(uuid) ?: return@addListener
+            val customName = CustomNameStorage.get(uuid) ?: return@addListener
 
             MinecraftServer.getSchedulerManager()
-                .buildTask { CustomNameStorage.remove(uuid, name) }
+                .buildTask { CustomNameStorage.remove(uuid, customName) }
                 .delay(TaskSchedule.tick(5))
                 .schedule()
         }
