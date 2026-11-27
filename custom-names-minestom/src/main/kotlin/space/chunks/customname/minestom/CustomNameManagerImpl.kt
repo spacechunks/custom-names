@@ -6,7 +6,7 @@ import space.chunks.customname.api.CustomNameManager
 class CustomNameManagerImpl : CustomNameManager<Entity> {
 
     override fun forEntity(entity: Entity): CustomNameImpl {
-        val existing = CustomNameStorage.getCustomPlayerName(entity.uuid)
+        val existing = CustomNameStorage.get(entity.uuid)
         if (existing != null) return existing
 
         val customName = CustomNameImpl(entity)

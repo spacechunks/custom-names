@@ -11,7 +11,7 @@ import space.chunks.customname.paper.listener.PlayerSneakListener
 import space.chunks.customname.paper.listener.PlayerTrackerListener
 
 class CustomNameManagerImpl(
-    private val plugin: JavaPlugin
+    private val plugin: JavaPlugin,
 ) : CustomNameManager<Entity> {
 
     fun registerListeners() {
@@ -29,7 +29,7 @@ class CustomNameManagerImpl(
     }
 
     override fun forEntity(entity: Entity): CustomNameImpl {
-        val existing = CustomNameStorage.getCustomPlayerName(entity.uniqueId)
+        val existing = CustomNameStorage.get(entity.uniqueId)
         if (existing != null) return existing
 
         val customName = CustomNameImpl(plugin, entity)

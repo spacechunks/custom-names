@@ -9,7 +9,7 @@ object CustomNameStorage {
 
     fun getAll(): Collection<CustomNameImpl> = storage.values
 
-    fun getCustomPlayerName(uuid: UUID): CustomNameImpl? = storage[uuid]
+    fun get(uuid: UUID): CustomNameImpl? = storage[uuid]
 
     fun register(entityId: UUID, name: CustomNameImpl) {
         storage[entityId] = name

@@ -4,50 +4,42 @@ import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
 import net.minestom.server.coordinate.Vec
 import net.minestom.server.entity.Entity
-import net.minestom.server.entity.EntityPose
 import net.minestom.server.entity.EntityType
+import net.minestom.server.entity.GameMode
+import net.minestom.server.entity.LivingEntity
 import net.minestom.server.entity.Metadata
 import net.minestom.server.entity.MetadataDef
 import net.minestom.server.entity.Player
+import net.minestom.server.entity.attribute.Attribute
 import net.minestom.server.network.packet.server.play.BundlePacket
 import net.minestom.server.network.packet.server.play.DestroyEntitiesPacket
 import net.minestom.server.network.packet.server.play.EntityMetaDataPacket
 import net.minestom.server.network.packet.server.play.SetPassengersPacket
 import net.minestom.server.network.packet.server.play.SpawnEntityPacket
 import space.chunks.customname.api.CustomName
-import java.util.ArrayList
 import java.util.HashMap
-import java.util.HashSet
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 class CustomNameImpl(
-    private val targetEntity: Entity
+    private val targetEntity: Entity,
 ) : CustomName {
 
-    // Target entity constants
-    private val effectiveHeight: Double
-    private val passengerOffset: Double
+    private val textOffset = AtomicReference(calculateTextOffset())
+    private val seeThroughDisplayId: Int = Entity.generateId()
+    private val textDisplayId: Int = Entity.generateId()
 
-    // Custom name constants
-    private val nametagEntityId: Int = Entity.generateId()
-
-    // States
-    private val trackedViewers = HashSet<Player>()
-    private var targetEntitySneaking = false
-    private var nameCallback: (viewer: Audience) -> Component? = { null }
-    private var hidden = false
-
-    init {
-        val entityHeight = targetEntity.boundingBox.height()
-        val ridingOffset = entityHeight * 0.75
-        val nametagOffset = entityHeight + 0.5f
-
-        effectiveHeight = -ridingOffset - 0.5 + nametagOffset
-        passengerOffset = ridingOffset
-    }
+    private val trackedViewers = ConcurrentHashMap.newKeySet<Player>()
+    private val nameCallback = AtomicReference<(viewer: Audience) -> Component?>({ null })
+    private val targetEntitySneaking = AtomicBoolean(targetEntity.isSneaking && targetEntity.vehicle == null)
+    private val carryingPassengers = AtomicBoolean(targetEntity.hasPassenger())
+    private val targetEntityInvisible = AtomicBoolean(isTargetEntityInvisible())
+    private val hidden = AtomicBoolean()
 
     fun update() {
-        if (hidden) return
+        if (!isVisible()) return
         if (trackedViewers.isEmpty()) return
 
         val riderPacket = getRiderPacket()
@@ -59,10 +51,8 @@ class CustomNameImpl(
     fun updateViewers() {
         val currentViewers = targetEntity.viewers
         for (viewer in currentViewers) {
-            if (trackedViewers.add(viewer)) {
-                if (!hidden) {
-                    sendSpawnPackets(viewer)
-                }
+            if (trackedViewers.add(viewer) && isVisible()) {
+                sendSpawnPackets(viewer)
             }
         }
 
@@ -77,107 +67,162 @@ class CustomNameImpl(
     }
 
     override fun setName(nameCallback: (viewer: Audience) -> Component?) {
-        this.nameCallback = nameCallback
+        this.nameCallback.set(nameCallback)
         syncData()
     }
 
-    override fun setTargetEntitySneaking(targetEntitySneaking: Boolean) {
-        this.targetEntitySneaking = targetEntitySneaking
+    fun setTargetEntitySneaking(sneaking: Boolean) {
+        if (targetEntitySneaking.getAndSet(sneaking) == sneaking) return
         syncData()
     }
 
-    override fun setHidden(hidden: Boolean) {
-        this.hidden = hidden
+    fun setCarryingPassengers(carrying: Boolean) {
+        if (carryingPassengers.getAndSet(carrying) == carrying) return
+        syncVisibility()
+    }
+
+    fun setTargetEntityInvisible(invisible: Boolean) {
+        if (targetEntityInvisible.getAndSet(invisible) == invisible) return
+        syncVisibility()
+    }
+
+    // the attachments scale with the entity, so the offset changes along with the scale attribute
+    fun updateTextOffset() {
+        val offset = calculateTextOffset()
+        if (textOffset.getAndSet(offset) == offset) return
+        if (!isVisible()) return
+
         for (player in trackedViewers) {
-            if (hidden) {
-                sendDestroyPacket(player)
-            } else {
-                sendSpawnPackets(player)
-            }
+            player.sendPackets(
+                BundlePacket(),
+                translationPacket(seeThroughDisplayId),
+                translationPacket(textDisplayId),
+                BundlePacket(),
+            )
         }
     }
 
-    override fun getName(viewer: Audience): Component? = nameCallback(viewer)
-    override fun getNametagId(): Int = nametagEntityId
-    override fun getTargetEntityId(): UUID = targetEntity.uuid
-    override fun isTargetEntitySneaking(): Boolean = targetEntitySneaking
-    override fun getEffectiveHeight(): Double = effectiveHeight
-    override fun getPassengerOffset(): Double = passengerOffset
-    override fun isHidden(): Boolean = hidden
+    override fun setHidden(hidden: Boolean) {
+        this.hidden.set(hidden)
+        syncVisibility()
+    }
 
-    // Utilities
+    override fun getName(viewer: Audience): Component? = nameCallback.get()(viewer)
+    override fun getTargetEntityId(): UUID = targetEntity.uuid
+    override fun isHidden(): Boolean = hidden.get()
+
+    fun isVisible(): Boolean = !hidden.get() && !carryingPassengers.get() && !targetEntityInvisible.get()
+    fun getTargetEntity(): Entity = targetEntity
+
+    // vanilla hides the name tag of invisible entities and spectators
+    fun isTargetEntityInvisible(): Boolean =
+        targetEntity.isInvisible || targetEntity is Player && targetEntity.gameMode == GameMode.SPECTATOR
+
+    fun getRiderPacket(): SetPassengersPacket {
+        val passengerIds = targetEntity.passengers.map { passenger -> passenger.entityId }
+        if (!isVisible()) return SetPassengersPacket(targetEntity.entityId, passengerIds)
+        return SetPassengersPacket(targetEntity.entityId, passengerIds + seeThroughDisplayId + textDisplayId)
+    }
+
+    // vanilla draws the top of a name tag 0.5 above its attachment, but a text display draws the bottom of its text at its origin
+    private fun calculateTextOffset(): Double =
+        attachmentOffset("NAME_TAG") + NAMETAG_OFFSET - LINE_HEIGHT - attachmentOffset("PASSENGER")
+
+    // minecraft falls back to the entity height for missing attachments, so we do the same
+    private fun attachmentOffset(attachment: String): Double {
+        val entityType = targetEntity.entityType
+        val offset = entityType.entityAttachments(attachment)?.firstOrNull()?.y() ?: entityType.height()
+        val scale = (targetEntity as? LivingEntity)?.getAttributeValue(Attribute.SCALE) ?: 1.0
+        return offset * scale
+    }
+
     private fun syncData() {
-        if (hidden) return
+        if (!isVisible()) return
 
         for (player in trackedViewers) {
-            player.sendPacket(syncDataPacket(player))
+            player.sendPackets(BundlePacket(), *syncDataPackets(player), BundlePacket())
+        }
+    }
+
+    private fun syncVisibility() {
+        for (player in trackedViewers) {
+            if (isVisible()) sendSpawnPackets(player) else sendDestroyPacket(player)
         }
     }
 
     private fun sendDestroyPacket(player: Player) {
-        player.sendPacket(DestroyEntitiesPacket(nametagEntityId))
+        player.sendPacket(DestroyEntitiesPacket(listOf(seeThroughDisplayId, textDisplayId)))
     }
 
-    fun getTargetEntity(): Entity = targetEntity
+    // vanilla draws a name tag twice, a faded pass with background through walls and a solid pass on top, sneaking only keeps the faded one
+    private fun syncDataPackets(viewer: Player): Array<EntityMetaDataPacket> {
+        val name = getName(viewer)
+        val sneaking = targetEntitySneaking.get()
+        val text = name ?: Component.empty()
+        val backgroundFlag = if (name == null) 0 else DEFAULT_BACKGROUND_FLAG
+        val seeThroughFlag = if (sneaking) 0 else SEE_THROUGH_FLAG
 
-    fun getRiderPacket(): SetPassengersPacket {
-        val passengers = targetEntity.passengers
-        val includeNametag = !hidden
-        val size = passengers.size + (if (includeNametag) 1 else 0)
-        val passengerIds = ArrayList<Int>(size)
+        val seeThroughEntries = HashMap<Int, Metadata.Entry<*>>()
+        seeThroughEntries[MetadataDef.TextDisplay.TEXT.index()] = Metadata.Component(text)
+        seeThroughEntries[MetadataDef.TextDisplay.TEXT_DISPLAY_FLAGS.index()] =
+            Metadata.Byte((backgroundFlag or seeThroughFlag).toByte())
 
-        for (passenger in passengers) {
-            passengerIds.add(passenger.entityId)
-        }
-        if (includeNametag) {
-            passengerIds.add(nametagEntityId)
-        }
+        val textEntries = HashMap<Int, Metadata.Entry<*>>()
+        textEntries[MetadataDef.TextDisplay.TEXT.index()] = Metadata.Component(if (sneaking) Component.empty() else text)
 
-        return SetPassengersPacket(targetEntity.entityId, passengerIds)
-    }
-
-    private fun syncDataPacket(viewer: Player): EntityMetaDataPacket {
-        val entries = HashMap<Int, Metadata.Entry<*>>()
-        entries[MetadataDef.CUSTOM_NAME.index()] = Metadata.OptComponent(getName(viewer))
-
-        val sneakFlag = if (targetEntitySneaking) 1 shl 1 else 0
-        val flagValue = (sneakFlag or 0x20).toByte()
-        entries[MetadataDef.ENTITY_FLAGS.index()] = Metadata.Byte(flagValue)
-
-        return EntityMetaDataPacket(nametagEntityId, entries)
+        return arrayOf(
+            EntityMetaDataPacket(seeThroughDisplayId, seeThroughEntries),
+            EntityMetaDataPacket(textDisplayId, textEntries),
+        )
     }
 
     private fun sendSpawnPackets(viewer: Player) {
-        val location = targetEntity.position
-
-        val spawnPacket = SpawnEntityPacket(
-            nametagEntityId,
-            UUID.randomUUID(),
-            EntityType.INTERACTION,
-            location.add(0.0, passengerOffset, 0.0),
-            0f,
-            0,
-            Vec.ZERO
-        )
-
-        val metaEntries = HashMap<Int, Metadata.Entry<*>>()
-        metaEntries[MetadataDef.Interaction.WIDTH.index()] = Metadata.Float(0.6f)
-        metaEntries[MetadataDef.Interaction.HEIGHT.index()] = Metadata.Float(effectiveHeight.toFloat())
-        metaEntries[MetadataDef.POSE.index()] = Metadata.Pose(EntityPose.CROAKING)
-        metaEntries[MetadataDef.CUSTOM_NAME_VISIBLE.index()] = Metadata.Boolean(true)
-        val initialCreatePacket = EntityMetaDataPacket(nametagEntityId, metaEntries)
-
-        val syncData = syncDataPacket(viewer)
-        val riderPacket = getRiderPacket()
-
         viewer.sendPackets(
             BundlePacket(),
-            spawnPacket,
-            initialCreatePacket,
-            syncData,
-            riderPacket,
-            BundlePacket()
+            spawnPacket(seeThroughDisplayId),
+            initialDataPacket(seeThroughDisplayId, SEE_THROUGH_TEXT_OPACITY),
+            spawnPacket(textDisplayId),
+            initialDataPacket(textDisplayId, TEXT_OPACITY),
+            *syncDataPackets(viewer),
+            getRiderPacket(),
+            BundlePacket(),
         )
     }
 
+    private fun spawnPacket(entityId: Int): SpawnEntityPacket =
+        SpawnEntityPacket(
+            entityId,
+            UUID.randomUUID(),
+            EntityType.TEXT_DISPLAY,
+            targetEntity.position.add(0.0, attachmentOffset("PASSENGER"), 0.0),
+            0f,
+            0,
+            Vec.ZERO,
+        )
+
+    private fun initialDataPacket(entityId: Int, opacity: Byte): EntityMetaDataPacket {
+        val entries = HashMap<Int, Metadata.Entry<*>>()
+        entries[MetadataDef.Display.TRANSLATION.index()] = Metadata.Vector3(Vec(0.0, textOffset.get(), 0.0))
+        entries[MetadataDef.Display.BILLBOARD_CONSTRAINTS.index()] = Metadata.Byte(BILLBOARD_CENTER)
+        entries[MetadataDef.TextDisplay.LINE_WIDTH.index()] = Metadata.VarInt(Int.MAX_VALUE)
+        entries[MetadataDef.TextDisplay.BACKGROUND_COLOR.index()] = Metadata.VarInt(0)
+        entries[MetadataDef.TextDisplay.TEXT_OPACITY.index()] = Metadata.Byte(opacity)
+        return EntityMetaDataPacket(entityId, entries)
+    }
+
+    private fun translationPacket(entityId: Int): EntityMetaDataPacket {
+        val entries = HashMap<Int, Metadata.Entry<*>>()
+        entries[MetadataDef.Display.TRANSLATION.index()] = Metadata.Vector3(Vec(0.0, textOffset.get(), 0.0))
+        return EntityMetaDataPacket(entityId, entries)
+    }
+
+    private companion object {
+        const val NAMETAG_OFFSET = 0.5
+        const val LINE_HEIGHT = 9 * 0.025
+        const val BILLBOARD_CENTER: Byte = 3
+        const val SEE_THROUGH_FLAG = 2
+        const val DEFAULT_BACKGROUND_FLAG = 4
+        const val TEXT_OPACITY: Byte = -1
+        const val SEE_THROUGH_TEXT_OPACITY: Byte = -128
+    }
 }
