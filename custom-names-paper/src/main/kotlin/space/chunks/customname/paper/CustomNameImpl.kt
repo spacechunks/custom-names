@@ -55,7 +55,8 @@ class CustomNameImpl(
 
     fun startUpdateTask() {
         val task = targetEntity.scheduler.runAtFixedRate(plugin, {
-            if (!targetEntity.isValid) {
+            // players stay the same entity on death, respawn and world change, they're only gone once they quit
+            if (targetEntity !is Player && !targetEntity.isValid) {
                 CustomNameStorage.remove(targetEntity.uniqueId, this)
             } else {
                 update()
