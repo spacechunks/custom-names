@@ -16,6 +16,7 @@ import net.minecraft.world.entity.EntityTypes
 import net.minecraft.world.phys.Vec3
 import org.bukkit.entity.Player
 import org.joml.Vector3f
+import org.joml.Vector3fc
 import space.chunks.customname.paper.CustomNameImpl
 import java.util.UUID
 
@@ -31,6 +32,14 @@ class CustomNamePackets(
 
     fun getRiderPacket(): Packet<ClientGamePacketListener> =
         DataAccessors.createSetPassengersPacket(customName.getTargetEntity().entityId, passengerIds())
+
+    fun getTranslationPacket(): Packet<ClientGamePacketListener> =
+        ClientboundBundlePacket(
+            listOf(
+                ClientboundSetEntityDataPacket(customName.getSeeThroughDisplayId(), listOf(translationData())),
+                ClientboundSetEntityDataPacket(customName.getTextDisplayId(), listOf(translationData())),
+            ),
+        )
 
     fun initialSpawnPacket(viewer: Player): Packet<*> =
         ClientboundBundlePacket(
@@ -78,7 +87,7 @@ class CustomNamePackets(
         ClientboundSetEntityDataPacket(
             entityId,
             listOf<DataValue<*>>(
-                ofData(DataAccessors.DATA_TRANSLATION_ID, Vector3f(0f, customName.getTextOffset().toFloat(), 0f)),
+                translationData(),
                 ofData(DataAccessors.DATA_BILLBOARD_RENDER_CONSTRAINTS_ID, BILLBOARD_CENTER),
                 ofData(DataAccessors.DATA_LINE_WIDTH_ID, Int.MAX_VALUE),
                 ofData(DataAccessors.DATA_BACKGROUND_COLOR_ID, 0),
@@ -103,6 +112,9 @@ class CustomNamePackets(
             0.0,
         )
     }
+
+    private fun translationData(): DataValue<Vector3fc> =
+        ofData(DataAccessors.DATA_TRANSLATION_ID, Vector3f(0f, customName.getTextOffset().toFloat(), 0f))
 
     private fun <T : Any> ofData(data: EntityDataAccessor<T>, value: T): DataValue<T> =
         DataItem(data, value).value()

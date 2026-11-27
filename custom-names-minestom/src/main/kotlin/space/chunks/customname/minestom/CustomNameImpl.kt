@@ -6,9 +6,11 @@ import net.minestom.server.coordinate.Vec
 import net.minestom.server.entity.Entity
 import net.minestom.server.entity.EntityType
 import net.minestom.server.entity.GameMode
+import net.minestom.server.entity.LivingEntity
 import net.minestom.server.entity.Metadata
 import net.minestom.server.entity.MetadataDef
 import net.minestom.server.entity.Player
+import net.minestom.server.entity.attribute.Attribute
 import net.minestom.server.network.packet.server.play.BundlePacket
 import net.minestom.server.network.packet.server.play.DestroyEntitiesPacket
 import net.minestom.server.network.packet.server.play.EntityMetaDataPacket
@@ -25,8 +27,7 @@ class CustomNameImpl(
     private val targetEntity: Entity,
 ) : CustomName {
 
-    private val textOffset: Double
-    private val passengerOffset: Double
+    private val textOffset = AtomicReference(calculateTextOffset())
     private val seeThroughDisplayId: Int = Entity.generateId()
     private val textDisplayId: Int = Entity.generateId()
 
@@ -36,17 +37,6 @@ class CustomNameImpl(
     private val carryingPassengers = AtomicBoolean(targetEntity.hasPassenger())
     private val targetEntityInvisible = AtomicBoolean(isTargetEntityInvisible())
     private val hidden = AtomicBoolean()
-
-    init {
-        // minecraft falls back to the entity height for missing attachments, so we do the same
-        val entityType = targetEntity.entityType
-        val ridingOffset = entityType.entityAttachments("PASSENGER")?.firstOrNull()?.y() ?: entityType.height()
-        val nametagOffset = entityType.entityAttachments("NAME_TAG")?.firstOrNull()?.y() ?: entityType.height()
-
-        // vanilla draws the top of a name tag 0.5 above its attachment, but a text display draws the bottom of its text at its origin
-        textOffset = nametagOffset + NAMETAG_OFFSET - LINE_HEIGHT - ridingOffset
-        passengerOffset = ridingOffset
-    }
 
     fun update() {
         if (!isVisible()) return
@@ -96,6 +86,22 @@ class CustomNameImpl(
         syncVisibility()
     }
 
+    // the attachments scale with the entity, so the offset changes along with the scale attribute
+    fun updateTextOffset() {
+        val offset = calculateTextOffset()
+        if (textOffset.getAndSet(offset) == offset) return
+        if (!isVisible()) return
+
+        for (player in trackedViewers) {
+            player.sendPackets(
+                BundlePacket(),
+                translationPacket(seeThroughDisplayId),
+                translationPacket(textDisplayId),
+                BundlePacket(),
+            )
+        }
+    }
+
     override fun setHidden(hidden: Boolean) {
         this.hidden.set(hidden)
         syncVisibility()
@@ -116,6 +122,18 @@ class CustomNameImpl(
         val passengerIds = targetEntity.passengers.map { passenger -> passenger.entityId }
         if (!isVisible()) return SetPassengersPacket(targetEntity.entityId, passengerIds)
         return SetPassengersPacket(targetEntity.entityId, passengerIds + seeThroughDisplayId + textDisplayId)
+    }
+
+    // vanilla draws the top of a name tag 0.5 above its attachment, but a text display draws the bottom of its text at its origin
+    private fun calculateTextOffset(): Double =
+        attachmentOffset("NAME_TAG") + NAMETAG_OFFSET - LINE_HEIGHT - attachmentOffset("PASSENGER")
+
+    // minecraft falls back to the entity height for missing attachments, so we do the same
+    private fun attachmentOffset(attachment: String): Double {
+        val entityType = targetEntity.entityType
+        val offset = entityType.entityAttachments(attachment)?.firstOrNull()?.y() ?: entityType.height()
+        val scale = (targetEntity as? LivingEntity)?.getAttributeValue(Attribute.SCALE) ?: 1.0
+        return offset * scale
     }
 
     private fun syncData() {
@@ -176,7 +194,7 @@ class CustomNameImpl(
             entityId,
             UUID.randomUUID(),
             EntityType.TEXT_DISPLAY,
-            targetEntity.position.add(0.0, passengerOffset, 0.0),
+            targetEntity.position.add(0.0, attachmentOffset("PASSENGER"), 0.0),
             0f,
             0,
             Vec.ZERO,
@@ -184,11 +202,17 @@ class CustomNameImpl(
 
     private fun initialDataPacket(entityId: Int, opacity: Byte): EntityMetaDataPacket {
         val entries = HashMap<Int, Metadata.Entry<*>>()
-        entries[MetadataDef.Display.TRANSLATION.index()] = Metadata.Vector3(Vec(0.0, textOffset, 0.0))
+        entries[MetadataDef.Display.TRANSLATION.index()] = Metadata.Vector3(Vec(0.0, textOffset.get(), 0.0))
         entries[MetadataDef.Display.BILLBOARD_CONSTRAINTS.index()] = Metadata.Byte(BILLBOARD_CENTER)
         entries[MetadataDef.TextDisplay.LINE_WIDTH.index()] = Metadata.VarInt(Int.MAX_VALUE)
         entries[MetadataDef.TextDisplay.BACKGROUND_COLOR.index()] = Metadata.VarInt(0)
         entries[MetadataDef.TextDisplay.TEXT_OPACITY.index()] = Metadata.Byte(opacity)
+        return EntityMetaDataPacket(entityId, entries)
+    }
+
+    private fun translationPacket(entityId: Int): EntityMetaDataPacket {
+        val entries = HashMap<Int, Metadata.Entry<*>>()
+        entries[MetadataDef.Display.TRANSLATION.index()] = Metadata.Vector3(Vec(0.0, textOffset.get(), 0.0))
         return EntityMetaDataPacket(entityId, entries)
     }
 

@@ -24,11 +24,10 @@ class CustomNameImpl(
 ) : CustomName {
 
     private val packets = CustomNamePackets(this)
-
-    private val textOffset: Double
-    private val passengerOffset: Double
-    private val seeThroughDisplayId: Int
-    private val textDisplayId: Int
+    private val nmsEntity = (targetEntity as CraftEntity).handle
+    private val seeThroughDisplayId: Int = nmsEntity.level().nextEntityId
+    private val textDisplayId: Int = nmsEntity.level().nextEntityId
+    private val textOffset = AtomicReference(calculateTextOffset())
 
     private val nameCallback = AtomicReference<(viewer: Audience) -> Component?>({ null })
     private val targetEntitySneaking = AtomicBoolean(targetEntity.isSneaking && !targetEntity.isInsideVehicle)
@@ -36,22 +35,6 @@ class CustomNameImpl(
     private val targetEntityInvisible = AtomicBoolean(isTargetEntityInvisible())
     private val hidden = AtomicBoolean()
     private val updateTask = AtomicReference<ScheduledTask?>()
-
-    init {
-        val nmsEntity = (targetEntity as CraftEntity).handle
-        seeThroughDisplayId = nmsEntity.level().nextEntityId
-        textDisplayId = nmsEntity.level().nextEntityId
-
-        val ridingOffset = nmsEntity
-            .getPassengerRidingPosition(nmsEntity)
-            .subtract(nmsEntity.position()).y
-
-        val nametagOffset = nmsEntity.attachments.getClamped(EntityAttachment.NAME_TAG, 0, 0f).y
-
-        // vanilla draws the top of a name tag 0.5 above its attachment, but a text display draws the bottom of its text at its origin
-        textOffset = nametagOffset + CustomNamePackets.NAMETAG_OFFSET - CustomNamePackets.LINE_HEIGHT - ridingOffset
-        passengerOffset = ridingOffset
-    }
 
     fun startUpdateTask() {
         val task = targetEntity.scheduler.runAtFixedRate(plugin, {
@@ -71,6 +54,7 @@ class CustomNameImpl(
 
     fun update() {
         setTargetEntityInvisible(isTargetEntityInvisible())
+        updateTextOffset()
 
         if (targetEntity.ticksLived % RIDER_SYNC_INTERVAL != 0) return
         if (!isVisible()) return
@@ -104,6 +88,17 @@ class CustomNameImpl(
         syncVisibility()
     }
 
+    // the attachments scale with the entity, so the offset changes along with the scale attribute
+    fun updateTextOffset() {
+        val offset = calculateTextOffset()
+        if (textOffset.getAndSet(offset) == offset) return
+        if (!isVisible()) return
+
+        runOnTrackers { player ->
+            (player as CraftPlayer).handle.connection.send(packets.getTranslationPacket())
+        }
+    }
+
     fun sendToClient(entity: Player) {
         if (isVisible()) {
             (entity as CraftPlayer).handle.connection.send(packets.initialSpawnPacket(entity))
@@ -127,9 +122,15 @@ class CustomNameImpl(
     fun getSeeThroughDisplayId(): Int = seeThroughDisplayId
     fun getTextDisplayId(): Int = textDisplayId
     fun isTargetEntitySneaking(): Boolean = targetEntitySneaking.get()
-    fun getTextOffset(): Double = textOffset
-    fun getPassengerOffset(): Double = passengerOffset
+    fun getTextOffset(): Double = textOffset.get()
+    fun getPassengerOffset(): Double = nmsEntity.getPassengerRidingPosition(nmsEntity).subtract(nmsEntity.position()).y
     fun getTargetEntity(): Entity = targetEntity
+
+    // vanilla draws the top of a name tag 0.5 above its attachment, but a text display draws the bottom of its text at its origin
+    private fun calculateTextOffset(): Double {
+        val nametagOffset = nmsEntity.attachments.getClamped(EntityAttachment.NAME_TAG, 0, 0f).y
+        return nametagOffset + CustomNamePackets.NAMETAG_OFFSET - CustomNamePackets.LINE_HEIGHT - getPassengerOffset()
+    }
 
     // vanilla hides the name tag of invisible entities and spectators
     private fun isTargetEntityInvisible(): Boolean =

@@ -9,6 +9,7 @@ import space.chunks.customname.api.CustomNameManager
 import space.chunks.customname.minestom.listener.EntityInvisibilityListener
 import space.chunks.customname.minestom.listener.EntityPassengerListener
 import space.chunks.customname.minestom.listener.EntityRemoveListener
+import space.chunks.customname.minestom.listener.EntityScaleListener
 import space.chunks.customname.minestom.listener.EntitySneakListener
 import space.chunks.customname.minestom.listener.PlayerQuitListener
 import space.chunks.customname.minestom.listener.PlayerTrackerListener
@@ -29,6 +30,7 @@ object CustomNamesMinestom {
         EntitySneakListener.register(node)
         EntityPassengerListener.register(node)
         EntityInvisibilityListener.register(node)
+        EntityScaleListener.register(node)
         PlayerQuitListener.register(node)
         EntityRemoveListener.register(node)
 
