@@ -4,7 +4,6 @@ import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
 import net.minestom.server.coordinate.Vec
 import net.minestom.server.entity.Entity
-import net.minestom.server.entity.EntityPose
 import net.minestom.server.entity.EntityType
 import net.minestom.server.entity.Metadata
 import net.minestom.server.entity.MetadataDef
@@ -39,11 +38,11 @@ class CustomNameImpl(
 
     init {
         val entityHeight = targetEntity.boundingBox.height()
-        val ridingOffset = entityHeight * 0.75
-        val nametagOffset = entityHeight + 0.5f
 
-        effectiveHeight = -ridingOffset - 0.5 + nametagOffset
-        passengerOffset = ridingOffset
+        // Vanilla renders the top of a name tag 0.5 blocks above the entity,
+        // while a text display riding the entity renders the bottom of its text at its origin
+        effectiveHeight = NAMETAG_OFFSET - LINE_HEIGHT
+        passengerOffset = entityHeight
     }
 
     fun update() {
@@ -137,12 +136,15 @@ class CustomNameImpl(
     }
 
     private fun syncDataPacket(viewer: Player): EntityMetaDataPacket {
-        val entries = HashMap<Int, Metadata.Entry<*>>()
-        entries[MetadataDef.CUSTOM_NAME.index()] = Metadata.OptComponent(getName(viewer))
+        val name = getName(viewer)
+        val backgroundFlag = if (name == null) 0 else DEFAULT_BACKGROUND_FLAG
+        val seeThroughFlag = if (targetEntitySneaking) 0 else SEE_THROUGH_FLAG
+        val opacity = if (targetEntitySneaking) SNEAKING_TEXT_OPACITY else DEFAULT_TEXT_OPACITY
 
-        val sneakFlag = if (targetEntitySneaking) 1 shl 1 else 0
-        val flagValue = (sneakFlag or 0x20).toByte()
-        entries[MetadataDef.ENTITY_FLAGS.index()] = Metadata.Byte(flagValue)
+        val entries = HashMap<Int, Metadata.Entry<*>>()
+        entries[MetadataDef.TextDisplay.TEXT.index()] = Metadata.Component(name ?: Component.empty())
+        entries[MetadataDef.TextDisplay.TEXT_DISPLAY_FLAGS.index()] = Metadata.Byte((backgroundFlag or seeThroughFlag).toByte())
+        entries[MetadataDef.TextDisplay.TEXT_OPACITY.index()] = Metadata.Byte(opacity)
 
         return EntityMetaDataPacket(nametagEntityId, entries)
     }
@@ -153,7 +155,7 @@ class CustomNameImpl(
         val spawnPacket = SpawnEntityPacket(
             nametagEntityId,
             UUID.randomUUID(),
-            EntityType.INTERACTION,
+            EntityType.TEXT_DISPLAY,
             location.add(0.0, passengerOffset, 0.0),
             0f,
             0,
@@ -161,10 +163,10 @@ class CustomNameImpl(
         )
 
         val metaEntries = HashMap<Int, Metadata.Entry<*>>()
-        metaEntries[MetadataDef.Interaction.WIDTH.index()] = Metadata.Float(0.6f)
-        metaEntries[MetadataDef.Interaction.HEIGHT.index()] = Metadata.Float(effectiveHeight.toFloat())
-        metaEntries[MetadataDef.POSE.index()] = Metadata.Pose(EntityPose.CROAKING)
-        metaEntries[MetadataDef.CUSTOM_NAME_VISIBLE.index()] = Metadata.Boolean(true)
+        metaEntries[MetadataDef.Display.TRANSLATION.index()] = Metadata.Vector3(Vec(0.0, effectiveHeight, 0.0))
+        metaEntries[MetadataDef.Display.BILLBOARD_CONSTRAINTS.index()] = Metadata.Byte(BILLBOARD_CENTER)
+        metaEntries[MetadataDef.TextDisplay.LINE_WIDTH.index()] = Metadata.VarInt(Int.MAX_VALUE)
+        metaEntries[MetadataDef.TextDisplay.BACKGROUND_COLOR.index()] = Metadata.VarInt(0)
         val initialCreatePacket = EntityMetaDataPacket(nametagEntityId, metaEntries)
 
         val syncData = syncDataPacket(viewer)
@@ -180,4 +182,13 @@ class CustomNameImpl(
         )
     }
 
+    private companion object {
+        const val NAMETAG_OFFSET = 0.5
+        const val LINE_HEIGHT = 9 * 0.025
+        const val BILLBOARD_CENTER: Byte = 3
+        const val SEE_THROUGH_FLAG = 2
+        const val DEFAULT_BACKGROUND_FLAG = 4
+        const val DEFAULT_TEXT_OPACITY: Byte = -1
+        const val SNEAKING_TEXT_OPACITY: Byte = -128
+    }
 }

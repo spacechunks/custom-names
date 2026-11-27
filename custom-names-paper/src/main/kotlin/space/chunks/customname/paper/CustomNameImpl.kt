@@ -5,6 +5,7 @@ import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
 import net.minecraft.network.protocol.Packet
 import net.minecraft.network.protocol.game.ClientGamePacketListener
+import net.minecraft.world.entity.EntityAttachment
 import org.bukkit.Bukkit
 import org.bukkit.craftbukkit.entity.CraftEntity
 import org.bukkit.craftbukkit.entity.CraftPlayer
@@ -12,7 +13,7 @@ import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
 import space.chunks.customname.api.CustomName
-import space.chunks.customname.paper.util.SkeletonInteraction
+import space.chunks.customname.paper.util.SkeletonTextDisplay
 import java.util.UUID
 import java.util.function.Consumer
 
@@ -21,7 +22,7 @@ class CustomNameImpl(
     private val targetEntity: Entity
 ) : CustomName {
 
-    private val interaction = SkeletonInteraction(this)
+    private val textDisplay = SkeletonTextDisplay(this)
 
     // Target entity constants
     private val effectiveHeight: Double
@@ -51,12 +52,11 @@ class CustomNameImpl(
             .getPassengerRidingPosition(nmsEntity)
             .subtract(nmsEntity.position()).y
 
-        val nametagOffset = nmsEntity.type.dimensions.height + 0.5f
+        val nametagOffset = nmsEntity.attachments.getClamped(EntityAttachment.NAME_TAG, 0, 0f).y
 
-        // First, negate the riding offset to get to the bounding of the entity's bounding box
-        // Negate the natural nametag offset of interaction entities (0.5)
-        // Add the actual offset of the nametag
-        effectiveHeight = -ridingOffset - 0.5 + nametagOffset
+        // Vanilla renders the top of a name tag 0.5 blocks above the name tag attachment,
+        // while a text display renders the bottom of its text at its origin
+        effectiveHeight = nametagOffset + NAMETAG_OFFSET - LINE_HEIGHT - ridingOffset
         passengerOffset = ridingOffset
     }
 
@@ -81,7 +81,7 @@ class CustomNameImpl(
         val trackers = targetEntity.trackedBy
         if (trackers.isEmpty()) return
 
-        val riderPacket: Packet<ClientGamePacketListener> = interaction.getRiderPacket()
+        val riderPacket: Packet<ClientGamePacketListener> = textDisplay.getRiderPacket()
         for (player in trackers) {
             (player as CraftPlayer).handle.connection.send(riderPacket)
         }
@@ -99,12 +99,12 @@ class CustomNameImpl(
 
     fun sendToClient(entity: Player) {
         if (!hidden) {
-            (entity as CraftPlayer).handle.connection.send(interaction.initialSpawnPacket(entity))
+            (entity as CraftPlayer).handle.connection.send(textDisplay.initialSpawnPacket(entity))
         }
     }
 
     fun removeFromClient(entity: Player) {
-        (entity as CraftPlayer).handle.connection.send(interaction.getRemovePacket())
+        (entity as CraftPlayer).handle.connection.send(textDisplay.getRemovePacket())
     }
 
     override fun setHidden(hidden: Boolean) {
@@ -129,7 +129,7 @@ class CustomNameImpl(
         if (hidden) return
 
         runOnTrackers { player ->
-            val packet = interaction.syncDataPacket(player)
+            val packet = textDisplay.syncDataPacket(player)
             (player as CraftPlayer).handle.connection.send(packet)
         }
     }
@@ -146,5 +146,10 @@ class CustomNameImpl(
         for (player in targetEntity.trackedBy) {
             consumer.accept(player)
         }
+    }
+
+    private companion object {
+        const val NAMETAG_OFFSET = 0.5
+        const val LINE_HEIGHT = 9 * 0.025
     }
 }

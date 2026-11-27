@@ -1,6 +1,7 @@
 package space.chunks.customname.paper.util
 
 import io.papermc.paper.adventure.PaperAdventure
+import net.minecraft.network.chat.Component
 import net.minecraft.network.protocol.Packet
 import net.minecraft.network.protocol.game.ClientGamePacketListener
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket
@@ -10,38 +11,40 @@ import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket
 import net.minecraft.network.syncher.EntityDataAccessor
 import net.minecraft.network.syncher.SynchedEntityData.DataItem
 import net.minecraft.network.syncher.SynchedEntityData.DataValue
+import net.minecraft.world.entity.Display
 import net.minecraft.world.entity.EntityTypes
-import net.minecraft.world.entity.Pose
 import net.minecraft.world.phys.Vec3
 import org.bukkit.Location
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
+import org.joml.Vector3f
 import space.chunks.customname.paper.CustomNameImpl
-import java.util.Optional
 import java.util.UUID
 
 /**
- * This classed is used for sending packets related to the interaction entity
+ * This classed is used for sending packets related to the text display entity
  * sent to the client.
  */
-class SkeletonInteraction(
+class SkeletonTextDisplay(
     private val customName: CustomNameImpl
 ) {
 
     fun syncDataPacket(viewer: Player): Packet<ClientGamePacketListener> {
-        val data: MutableList<DataValue<*>> = ArrayList()
-        data.add(
-            ofData(
-                DataAccessors.DATA_CUSTOM_NAME,
-                Optional.ofNullable(PaperAdventure.asVanilla(customName.getName(viewer)))
+        val name = customName.getName(viewer)
+        val sneaking = customName.isTargetEntitySneaking()
+
+        val text = if (name == null) Component.empty() else PaperAdventure.asVanilla(name)
+        val backgroundFlag = if (name == null) 0 else Display.TextDisplay.FLAG_USE_DEFAULT_BACKGROUND.toInt()
+        val seeThroughFlag = if (sneaking) 0 else Display.TextDisplay.FLAG_SEE_THROUGH.toInt()
+        val opacity = if (sneaking) SNEAKING_TEXT_OPACITY else DEFAULT_TEXT_OPACITY
+
+        return ClientboundSetEntityDataPacket(
+            customName.getNametagId(), listOf<DataValue<*>>(
+                ofData(DataAccessors.DATA_TEXT_ID, text),
+                ofData(DataAccessors.DATA_STYLE_FLAGS_ID, (backgroundFlag or seeThroughFlag).toByte()),
+                ofData(DataAccessors.DATA_TEXT_OPACITY_ID, opacity)
             )
         )
-
-        val sneakFlag = if (customName.isTargetEntitySneaking()) 1 shl 1 else 0
-        val value = (sneakFlag or 0x20).toByte()
-        data.add(ofData(DataAccessors.DATA_SHARED_FLAGS_ID, value))
-
-        return ClientboundSetEntityDataPacket(customName.getNametagId(), data)
     }
 
     fun getRemovePacket(): Packet<ClientGamePacketListener> =
@@ -71,10 +74,10 @@ class SkeletonInteraction(
     fun initialSpawnPacket(viewer: Player): Packet<*> {
         val initialCreatePacket = ClientboundSetEntityDataPacket(
             customName.getNametagId(), listOf<DataValue<*>>(
-                ofData(DataAccessors.DATA_WIDTH_ID, 0.6f),
-                ofData(DataAccessors.DATA_HEIGHT_ID, customName.getEffectiveHeight().toFloat()),
-                ofData(DataAccessors.DATA_POSE, Pose.CROAKING),
-                ofData(DataAccessors.DATA_CUSTOM_NAME_VISIBLE, true)
+                ofData(DataAccessors.DATA_TRANSLATION_ID, Vector3f(0f, customName.getEffectiveHeight().toFloat(), 0f)),
+                ofData(DataAccessors.DATA_BILLBOARD_RENDER_CONSTRAINTS_ID, BILLBOARD_CENTER),
+                ofData(DataAccessors.DATA_LINE_WIDTH_ID, Int.MAX_VALUE),
+                ofData(DataAccessors.DATA_BACKGROUND_COLOR_ID, 0)
             )
         )
         val syncData = syncDataPacket(viewer)
@@ -100,7 +103,7 @@ class SkeletonInteraction(
             location.z(),
             0f,
             0f,
-            EntityTypes.INTERACTION,
+            EntityTypes.TEXT_DISPLAY,
             0,
             Vec3.ZERO,
             0.0,
@@ -110,4 +113,9 @@ class SkeletonInteraction(
     private fun <T : Any> ofData(data: EntityDataAccessor<T>, value: T): DataValue<T> =
         DataItem(data, value).value()
 
+    private companion object {
+        const val BILLBOARD_CENTER: Byte = 3
+        const val DEFAULT_TEXT_OPACITY: Byte = -1
+        const val SNEAKING_TEXT_OPACITY: Byte = -128
+    }
 }

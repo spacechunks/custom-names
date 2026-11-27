@@ -1,9 +1,9 @@
 [versions]
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 
 shadow = "9.6.1"
 run-task = "3.1.0"
-paperweight = "2.0.0-beta.23"
+paperweight = "2.0.0-beta.24"
 sonatype-central-portal-publisher = "1.2.4"
 
 paper-api = "26.3.build.+"
