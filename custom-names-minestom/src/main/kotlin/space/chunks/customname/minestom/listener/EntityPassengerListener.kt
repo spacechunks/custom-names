@@ -11,10 +11,7 @@ object EntityPassengerListener {
     fun register(node: EventNode<Event>) {
         node.addListener(EntityTickEvent::class.java) { event ->
             val customName = CustomNameStorage.get(event.entity.uuid) ?: return@addListener
-            val hasPassengers = event.entity.hasPassenger()
-            if (hasPassengers == customName.isHidden()) return@addListener
-
-            customName.setHidden(hasPassengers)
+            customName.setCarryingPassengers(event.entity.hasPassenger())
         }
     }
 

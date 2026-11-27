@@ -15,16 +15,18 @@ class EntityPassengerListener(
     @EventHandler(ignoreCancelled = true)
     fun onEntityMount(event: EntityMountEvent) {
         val customName = CustomNameStorage.get(event.mount.uniqueId) ?: return
-        customName.setHidden(true)
+        customName.setCarryingPassengers(true)
     }
 
     @EventHandler(ignoreCancelled = true)
     fun onEntityDismount(event: EntityDismountEvent) {
         val customName = CustomNameStorage.get(event.dismounted.uniqueId) ?: return
-        if (event.dismounted.passengers.isNotEmpty()) return
+        val vehicle = event.dismounted
 
-        // the game sends the passenger update a bit later, so we wait 2 ticks before showing the name again
-        event.dismounted.scheduler.runDelayed(plugin, { customName.setHidden(false) }, null, 2)
+        // the passenger is still attached while this event runs and the game resyncs the passengers right after, so we check again 2 ticks later
+        vehicle.scheduler.runDelayed(plugin, {
+            customName.setCarryingPassengers(vehicle.passengers.isNotEmpty())
+        }, null, 2)
     }
 
 }

@@ -5,6 +5,7 @@ import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
 import net.minecraft.world.entity.EntityAttachment
 import org.bukkit.Bukkit
+import org.bukkit.GameMode
 import org.bukkit.craftbukkit.entity.CraftEntity
 import org.bukkit.craftbukkit.entity.CraftPlayer
 import org.bukkit.entity.Entity
@@ -13,6 +14,8 @@ import org.bukkit.plugin.java.JavaPlugin
 import space.chunks.customname.api.CustomName
 import space.chunks.customname.paper.util.CustomNamePackets
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import java.util.function.Consumer
 
 class CustomNameImpl(
@@ -24,23 +27,20 @@ class CustomNameImpl(
 
     private val textOffset: Double
     private val passengerOffset: Double
-    private val nametagEntityId: Int
+    private val seeThroughDisplayId: Int
+    private val textDisplayId: Int
 
-    @Volatile
-    private var targetEntitySneaking = false
-
-    @Volatile
-    private var nameCallback: (viewer: Audience) -> Component? = { null }
-
-    @Volatile
-    private var hidden = false
-
-    @Volatile
-    private var updateTask: ScheduledTask? = null
+    private val nameCallback = AtomicReference<(viewer: Audience) -> Component?>({ null })
+    private val targetEntitySneaking = AtomicBoolean(targetEntity.isSneaking && !targetEntity.isInsideVehicle)
+    private val carryingPassengers = AtomicBoolean(targetEntity.passengers.isNotEmpty())
+    private val targetEntityInvisible = AtomicBoolean(isTargetEntityInvisible())
+    private val hidden = AtomicBoolean()
+    private val updateTask = AtomicReference<ScheduledTask?>()
 
     init {
         val nmsEntity = (targetEntity as CraftEntity).handle
-        nametagEntityId = nmsEntity.level().nextEntityId
+        seeThroughDisplayId = nmsEntity.level().nextEntityId
+        textDisplayId = nmsEntity.level().nextEntityId
 
         val ridingOffset = nmsEntity
             .getPassengerRidingPosition(nmsEntity)
@@ -54,22 +54,25 @@ class CustomNameImpl(
     }
 
     fun startUpdateTask() {
-        // runs on the thread owning the target entity, so the trackers can be accessed safely
-        updateTask = targetEntity.scheduler.runAtFixedRate(plugin, {
+        val task = targetEntity.scheduler.runAtFixedRate(plugin, {
             if (!targetEntity.isValid) {
                 CustomNameStorage.remove(targetEntity.uniqueId, this)
             } else {
                 update()
             }
-        }, { CustomNameStorage.remove(targetEntity.uniqueId, this) }, 20, 20)
+        }, { CustomNameStorage.remove(targetEntity.uniqueId, this) }, 1, 1)
+        updateTask.set(task)
     }
 
     fun cancelUpdateTask() {
-        updateTask?.cancel()
+        updateTask.get()?.cancel()
     }
 
     fun update() {
-        if (hidden) return
+        setTargetEntityInvisible(isTargetEntityInvisible())
+
+        if (targetEntity.ticksLived % RIDER_SYNC_INTERVAL != 0) return
+        if (!isVisible()) return
 
         val trackers = targetEntity.trackedBy
         if (trackers.isEmpty()) return
@@ -81,17 +84,27 @@ class CustomNameImpl(
     }
 
     override fun setName(nameCallback: (viewer: Audience) -> Component?) {
-        this.nameCallback = nameCallback
+        this.nameCallback.set(nameCallback)
         syncData()
     }
 
-    fun setTargetEntitySneaking(targetEntitySneaking: Boolean) {
-        this.targetEntitySneaking = targetEntitySneaking
+    fun setTargetEntitySneaking(sneaking: Boolean) {
+        if (targetEntitySneaking.getAndSet(sneaking) == sneaking) return
         syncData()
+    }
+
+    fun setCarryingPassengers(carrying: Boolean) {
+        if (carryingPassengers.getAndSet(carrying) == carrying) return
+        syncVisibility()
+    }
+
+    fun setTargetEntityInvisible(invisible: Boolean) {
+        if (targetEntityInvisible.getAndSet(invisible) == invisible) return
+        syncVisibility()
     }
 
     fun sendToClient(entity: Player) {
-        if (!hidden) {
+        if (isVisible()) {
             (entity as CraftPlayer).handle.connection.send(packets.initialSpawnPacket(entity))
         }
     }
@@ -101,32 +114,42 @@ class CustomNameImpl(
     }
 
     override fun setHidden(hidden: Boolean) {
-        this.hidden = hidden
-        runOnTrackers { player ->
-            if (hidden) removeFromClient(player) else sendToClient(player)
-        }
+        this.hidden.set(hidden)
+        syncVisibility()
     }
 
-    override fun getName(viewer: Audience): Component? = nameCallback(viewer)
+    override fun getName(viewer: Audience): Component? = nameCallback.get()(viewer)
     override fun getTargetEntityId(): UUID = targetEntity.uniqueId
-    override fun isHidden(): Boolean = hidden
+    override fun isHidden(): Boolean = hidden.get()
 
-    fun getNametagId(): Int = nametagEntityId
-    fun isTargetEntitySneaking(): Boolean = targetEntitySneaking
+    fun isVisible(): Boolean = !hidden.get() && !carryingPassengers.get() && !targetEntityInvisible.get()
+    fun getSeeThroughDisplayId(): Int = seeThroughDisplayId
+    fun getTextDisplayId(): Int = textDisplayId
+    fun isTargetEntitySneaking(): Boolean = targetEntitySneaking.get()
     fun getTextOffset(): Double = textOffset
     fun getPassengerOffset(): Double = passengerOffset
     fun getTargetEntity(): Entity = targetEntity
 
+    // vanilla hides the name tag of invisible entities and spectators
+    private fun isTargetEntityInvisible(): Boolean =
+        targetEntity.isInvisible || targetEntity is Player && targetEntity.gameMode == GameMode.SPECTATOR
+
     private fun syncData() {
-        if (hidden) return
+        if (!isVisible()) return
 
         runOnTrackers { player ->
             (player as CraftPlayer).handle.connection.send(packets.syncDataPacket(player))
         }
     }
 
+    private fun syncVisibility() {
+        runOnTrackers { player ->
+            if (isVisible()) sendToClient(player) else removeFromClient(player)
+        }
+    }
+
     private fun runOnTrackers(consumer: Consumer<Player>) {
-        // trackers may only be accessed by the thread owning the target entity, so we hop over to it first
+        // trackers may only be accessed by the region owning the target entity, so we switch over to it first
         if (!Bukkit.isOwnedByCurrentRegion(targetEntity)) {
             if (plugin.isEnabled) {
                 targetEntity.scheduler.run(plugin, { runOnTrackers(consumer) }, null)
@@ -137,5 +160,9 @@ class CustomNameImpl(
         for (player in targetEntity.trackedBy) {
             consumer.accept(player)
         }
+    }
+
+    private companion object {
+        const val RIDER_SYNC_INTERVAL = 20
     }
 }

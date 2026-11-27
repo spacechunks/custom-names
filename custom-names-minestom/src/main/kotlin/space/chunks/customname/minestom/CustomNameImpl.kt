@@ -5,6 +5,7 @@ import net.kyori.adventure.text.Component
 import net.minestom.server.coordinate.Vec
 import net.minestom.server.entity.Entity
 import net.minestom.server.entity.EntityType
+import net.minestom.server.entity.GameMode
 import net.minestom.server.entity.Metadata
 import net.minestom.server.entity.MetadataDef
 import net.minestom.server.entity.Player
@@ -15,8 +16,10 @@ import net.minestom.server.network.packet.server.play.SetPassengersPacket
 import net.minestom.server.network.packet.server.play.SpawnEntityPacket
 import space.chunks.customname.api.CustomName
 import java.util.HashMap
-import java.util.HashSet
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 class CustomNameImpl(
     private val targetEntity: Entity,
@@ -24,21 +27,29 @@ class CustomNameImpl(
 
     private val textOffset: Double
     private val passengerOffset: Double
-    private val nametagEntityId: Int = Entity.generateId()
+    private val seeThroughDisplayId: Int = Entity.generateId()
+    private val textDisplayId: Int = Entity.generateId()
 
-    private val trackedViewers = HashSet<Player>()
-    private var targetEntitySneaking = false
-    private var nameCallback: (viewer: Audience) -> Component? = { null }
-    private var hidden = false
+    private val trackedViewers = ConcurrentHashMap.newKeySet<Player>()
+    private val nameCallback = AtomicReference<(viewer: Audience) -> Component?>({ null })
+    private val targetEntitySneaking = AtomicBoolean(targetEntity.isSneaking && targetEntity.vehicle == null)
+    private val carryingPassengers = AtomicBoolean(targetEntity.hasPassenger())
+    private val targetEntityInvisible = AtomicBoolean(isTargetEntityInvisible())
+    private val hidden = AtomicBoolean()
 
     init {
-        // vanilla draws the top of a name tag 0.5 above the entity, but a text display draws the bottom of its text at its origin
-        textOffset = NAMETAG_OFFSET - LINE_HEIGHT
-        passengerOffset = targetEntity.boundingBox.height()
+        // minecraft falls back to the entity height for missing attachments, so we do the same
+        val entityType = targetEntity.entityType
+        val ridingOffset = entityType.entityAttachments("PASSENGER")?.firstOrNull()?.y() ?: entityType.height()
+        val nametagOffset = entityType.entityAttachments("NAME_TAG")?.firstOrNull()?.y() ?: entityType.height()
+
+        // vanilla draws the top of a name tag 0.5 above its attachment, but a text display draws the bottom of its text at its origin
+        textOffset = nametagOffset + NAMETAG_OFFSET - LINE_HEIGHT - ridingOffset
+        passengerOffset = ridingOffset
     }
 
     fun update() {
-        if (hidden) return
+        if (!isVisible()) return
         if (trackedViewers.isEmpty()) return
 
         val riderPacket = getRiderPacket()
@@ -50,7 +61,7 @@ class CustomNameImpl(
     fun updateViewers() {
         val currentViewers = targetEntity.viewers
         for (viewer in currentViewers) {
-            if (trackedViewers.add(viewer) && !hidden) {
+            if (trackedViewers.add(viewer) && isVisible()) {
                 sendSpawnPackets(viewer)
             }
         }
@@ -66,67 +77,103 @@ class CustomNameImpl(
     }
 
     override fun setName(nameCallback: (viewer: Audience) -> Component?) {
-        this.nameCallback = nameCallback
+        this.nameCallback.set(nameCallback)
         syncData()
     }
 
-    fun setTargetEntitySneaking(targetEntitySneaking: Boolean) {
-        this.targetEntitySneaking = targetEntitySneaking
+    fun setTargetEntitySneaking(sneaking: Boolean) {
+        if (targetEntitySneaking.getAndSet(sneaking) == sneaking) return
         syncData()
+    }
+
+    fun setCarryingPassengers(carrying: Boolean) {
+        if (carryingPassengers.getAndSet(carrying) == carrying) return
+        syncVisibility()
+    }
+
+    fun setTargetEntityInvisible(invisible: Boolean) {
+        if (targetEntityInvisible.getAndSet(invisible) == invisible) return
+        syncVisibility()
     }
 
     override fun setHidden(hidden: Boolean) {
-        this.hidden = hidden
-        for (player in trackedViewers) {
-            if (hidden) {
-                sendDestroyPacket(player)
-            } else {
-                sendSpawnPackets(player)
-            }
-        }
+        this.hidden.set(hidden)
+        syncVisibility()
     }
 
-    override fun getName(viewer: Audience): Component? = nameCallback(viewer)
+    override fun getName(viewer: Audience): Component? = nameCallback.get()(viewer)
     override fun getTargetEntityId(): UUID = targetEntity.uuid
-    override fun isHidden(): Boolean = hidden
+    override fun isHidden(): Boolean = hidden.get()
 
+    fun isVisible(): Boolean = !hidden.get() && !carryingPassengers.get() && !targetEntityInvisible.get()
     fun getTargetEntity(): Entity = targetEntity
+
+    // vanilla hides the name tag of invisible entities and spectators
+    fun isTargetEntityInvisible(): Boolean =
+        targetEntity.isInvisible || targetEntity is Player && targetEntity.gameMode == GameMode.SPECTATOR
 
     fun getRiderPacket(): SetPassengersPacket {
         val passengerIds = targetEntity.passengers.map { passenger -> passenger.entityId }
-        if (hidden) return SetPassengersPacket(targetEntity.entityId, passengerIds)
-        return SetPassengersPacket(targetEntity.entityId, passengerIds + nametagEntityId)
+        if (!isVisible()) return SetPassengersPacket(targetEntity.entityId, passengerIds)
+        return SetPassengersPacket(targetEntity.entityId, passengerIds + seeThroughDisplayId + textDisplayId)
     }
 
     private fun syncData() {
-        if (hidden) return
+        if (!isVisible()) return
 
         for (player in trackedViewers) {
-            player.sendPacket(syncDataPacket(player))
+            player.sendPackets(BundlePacket(), *syncDataPackets(player), BundlePacket())
+        }
+    }
+
+    private fun syncVisibility() {
+        for (player in trackedViewers) {
+            if (isVisible()) sendSpawnPackets(player) else sendDestroyPacket(player)
         }
     }
 
     private fun sendDestroyPacket(player: Player) {
-        player.sendPacket(DestroyEntitiesPacket(nametagEntityId))
+        player.sendPacket(DestroyEntitiesPacket(listOf(seeThroughDisplayId, textDisplayId)))
     }
 
-    private fun syncDataPacket(viewer: Player): EntityMetaDataPacket {
+    // vanilla draws a name tag twice, a faded pass with background through walls and a solid pass on top, sneaking only keeps the faded one
+    private fun syncDataPackets(viewer: Player): Array<EntityMetaDataPacket> {
         val name = getName(viewer)
+        val sneaking = targetEntitySneaking.get()
+        val text = name ?: Component.empty()
         val backgroundFlag = if (name == null) 0 else DEFAULT_BACKGROUND_FLAG
-        val seeThroughFlag = if (targetEntitySneaking) 0 else SEE_THROUGH_FLAG
-        val opacity = if (targetEntitySneaking) SNEAKING_TEXT_OPACITY else DEFAULT_TEXT_OPACITY
+        val seeThroughFlag = if (sneaking) 0 else SEE_THROUGH_FLAG
 
-        val entries = HashMap<Int, Metadata.Entry<*>>()
-        entries[MetadataDef.TextDisplay.TEXT.index()] = Metadata.Component(name ?: Component.empty())
-        entries[MetadataDef.TextDisplay.TEXT_DISPLAY_FLAGS.index()] = Metadata.Byte((backgroundFlag or seeThroughFlag).toByte())
-        entries[MetadataDef.TextDisplay.TEXT_OPACITY.index()] = Metadata.Byte(opacity)
+        val seeThroughEntries = HashMap<Int, Metadata.Entry<*>>()
+        seeThroughEntries[MetadataDef.TextDisplay.TEXT.index()] = Metadata.Component(text)
+        seeThroughEntries[MetadataDef.TextDisplay.TEXT_DISPLAY_FLAGS.index()] =
+            Metadata.Byte((backgroundFlag or seeThroughFlag).toByte())
 
-        return EntityMetaDataPacket(nametagEntityId, entries)
+        val textEntries = HashMap<Int, Metadata.Entry<*>>()
+        textEntries[MetadataDef.TextDisplay.TEXT.index()] = Metadata.Component(if (sneaking) Component.empty() else text)
+
+        return arrayOf(
+            EntityMetaDataPacket(seeThroughDisplayId, seeThroughEntries),
+            EntityMetaDataPacket(textDisplayId, textEntries),
+        )
     }
 
     private fun sendSpawnPackets(viewer: Player) {
-        val spawnPacket = SpawnEntityPacket(
-            nametagEntityId,
+        viewer.sendPackets(
+            BundlePacket(),
+            spawnPacket(seeThroughDisplayId),
+            initialDataPacket(seeThroughDisplayId, SEE_THROUGH_TEXT_OPACITY),
+            spawnPacket(textDisplayId),
+            initialDataPacket(textDisplayId, TEXT_OPACITY),
+            *syncDataPackets(viewer),
+            getRiderPacket(),
+            BundlePacket(),
+        )
+    }
+
+    private fun spawnPacket(entityId: Int): SpawnEntityPacket =
+        SpawnEntityPacket(
+            entityId,
             UUID.randomUUID(),
             EntityType.TEXT_DISPLAY,
             targetEntity.position.add(0.0, passengerOffset, 0.0),
@@ -135,20 +182,14 @@ class CustomNameImpl(
             Vec.ZERO,
         )
 
-        val metaEntries = HashMap<Int, Metadata.Entry<*>>()
-        metaEntries[MetadataDef.Display.TRANSLATION.index()] = Metadata.Vector3(Vec(0.0, textOffset, 0.0))
-        metaEntries[MetadataDef.Display.BILLBOARD_CONSTRAINTS.index()] = Metadata.Byte(BILLBOARD_CENTER)
-        metaEntries[MetadataDef.TextDisplay.LINE_WIDTH.index()] = Metadata.VarInt(Int.MAX_VALUE)
-        metaEntries[MetadataDef.TextDisplay.BACKGROUND_COLOR.index()] = Metadata.VarInt(0)
-
-        viewer.sendPackets(
-            BundlePacket(),
-            spawnPacket,
-            EntityMetaDataPacket(nametagEntityId, metaEntries),
-            syncDataPacket(viewer),
-            getRiderPacket(),
-            BundlePacket(),
-        )
+    private fun initialDataPacket(entityId: Int, opacity: Byte): EntityMetaDataPacket {
+        val entries = HashMap<Int, Metadata.Entry<*>>()
+        entries[MetadataDef.Display.TRANSLATION.index()] = Metadata.Vector3(Vec(0.0, textOffset, 0.0))
+        entries[MetadataDef.Display.BILLBOARD_CONSTRAINTS.index()] = Metadata.Byte(BILLBOARD_CENTER)
+        entries[MetadataDef.TextDisplay.LINE_WIDTH.index()] = Metadata.VarInt(Int.MAX_VALUE)
+        entries[MetadataDef.TextDisplay.BACKGROUND_COLOR.index()] = Metadata.VarInt(0)
+        entries[MetadataDef.TextDisplay.TEXT_OPACITY.index()] = Metadata.Byte(opacity)
+        return EntityMetaDataPacket(entityId, entries)
     }
 
     private companion object {
@@ -157,7 +198,7 @@ class CustomNameImpl(
         const val BILLBOARD_CENTER: Byte = 3
         const val SEE_THROUGH_FLAG = 2
         const val DEFAULT_BACKGROUND_FLAG = 4
-        const val DEFAULT_TEXT_OPACITY: Byte = -1
-        const val SNEAKING_TEXT_OPACITY: Byte = -128
+        const val TEXT_OPACITY: Byte = -1
+        const val SEE_THROUGH_TEXT_OPACITY: Byte = -128
     }
 }
